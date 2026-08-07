@@ -78,6 +78,25 @@ describe("SigmundClient", () => {
     client.disconnect();
   });
 
+  it("requests a deliberate local operator handoff only in local mode", async () => {
+    const client = createClient();
+    await client.connect();
+    const socket = FakeWebSocket.instances[0];
+    socket.open();
+
+    const pending = client.sendRequest("lease.acquire", { mode: "operator", local_handoff: true });
+    const request = socket.sent.at(-1);
+
+    expect(request).toMatchObject({
+      type: "lease.acquire",
+      mode: "operator",
+      local_handoff: true,
+    });
+    socket.receive({ type: "request.result", request_id: request.request_id, payload: { ok: true } });
+    await pending;
+    client.disconnect();
+  });
+
   it("never resumes a continuous value after reconnect", async () => {
     const client = createClient();
     await client.connect();
@@ -101,7 +120,22 @@ describe("SigmundClient", () => {
     socket.open();
     client.setControl("table_rotation", { velocity_ratio: 1 });
     client.clearControl("table_rotation");
-    expect(socket.sent.at(-1)).toMatchObject({ channel: "table_rotation", payload: { velocity_ratio: 0 } });
+    client.clearControl("table_rotation");
+    const stops = socket.sent.filter((frame) => frame.channel === "table_rotation");
+    expect(stops).toHaveLength(1);
+    expect(stops[0]).toMatchObject({ channel: "table_rotation", payload: { velocity_ratio: 0 } });
+    client.disconnect();
+  });
+
+  it("always sends an operator-requested explicit stop", async () => {
+    const client = createClient();
+    await client.connect();
+    const socket = FakeWebSocket.instances[0];
+    socket.open();
+
+    client.stopControl("paint_pump");
+
+    expect(socket.sent.at(-1)).toMatchObject({ channel: "paint_pump", payload: { velocity_ratio: 0 } });
     client.disconnect();
   });
 

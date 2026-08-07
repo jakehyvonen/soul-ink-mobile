@@ -123,7 +123,10 @@ export default function App() {
   /** Acquire operator control, then start one painting session/run. Usage: Begin Painting. */
   async function beginPainting() {
     try {
-      await runOperation("lease", "lease.acquire", { mode: "operator" });
+      await runOperation("lease", "lease.acquire", {
+        mode: "operator",
+        local_handoff: config.mode === "local",
+      });
       if (state.machine?.xy?.estop) {
         const error = new Error("Pico E-stop is latched. Verify the machine is safe, then select Clear Stop.");
         dispatch({ type: "operation.failed", name: "painting_session_start", error: error.message });
@@ -263,9 +266,9 @@ export default function App() {
             <div className="section-heading"><h2>Paint and table</h2><span>release always stops</span></div>
             <div className="hold-grid">
               <HoldControlButton disabled={!operatorReady} onStart={() => client.setControl("paint_pump", { velocity_ratio: 1 })} onStop={() => client.clearControl("paint_pump")} tone="pump">Hold Dispense</HoldControlButton>
-              <button type="button" className="control-button stop" disabled={!operatorReady} onClick={() => client.clearControl("paint_pump")}>Stop Pump</button>
+              <button type="button" className="control-button stop" disabled={!operatorReady} onClick={() => client.stopControl("paint_pump")}>Stop Pump</button>
               <HoldControlButton disabled={!operatorReady} onStart={() => client.setControl("table_rotation", { velocity_ratio: -1 })} onStop={() => client.clearControl("table_rotation")}>Hold CCW</HoldControlButton>
-              <button type="button" className="control-button stop" disabled={!operatorReady} onClick={() => client.clearControl("table_rotation")}>Stop Rotation</button>
+              <button type="button" className="control-button stop" disabled={!operatorReady} onClick={() => client.stopControl("table_rotation")}>Stop Rotation</button>
               <HoldControlButton disabled={!operatorReady} onStart={() => client.setControl("table_rotation", { velocity_ratio: 1 })} onStop={() => client.clearControl("table_rotation")}>Hold CW</HoldControlButton>
               <button type="button" className={`control-button ${tiltActive ? "record" : "accent"}`} disabled={!operatorReady || !orientationEnabled} onClick={toggleTilt}>{tiltActive ? "Stop Tilt" : "Use Phone Tilt"}</button>
               <TaskButton state={state} operation="table_level" label="Level" onClick={() => { setTiltActive(false); runOperation("table_level", "control.level").catch(() => undefined); }} disabled={!operatorReady} />

@@ -50,7 +50,7 @@ An empty local `controlUrl` resolves to `/ws` on the current origin. Remote mode
 
 ## Safety model
 
-- Opening PBM connects read-only. `Begin Painting` explicitly acquires the operator lease and starts one painting session.
+- Opening PBM connects read-only. Local `Begin Painting` explicitly takes over an idle Main-GUI operator lease, neutralizes continuous outputs without latching Stop All, and starts one painting session. Remote mode cannot request this local handoff.
 - The joystick, phone tilt, pump, and rotary controls send normalized latest values every 53 ms. The Pi owns scaling and clamping.
 - Pointer release/cancel, capture loss, blur, page hide, visibility loss, socket loss, lease loss, and session end clear continuous intent. Reconnection starts with no active outputs.
 - Syringe, recording, replay, pump, and rotary presentation follows server events. A request acceptance is not shown as physical confirmation.

@@ -191,11 +191,17 @@ export class SigmundClient {
     this.values.set(channel, normalizeControl(channel, values));
   }
 
-  /** Send neutral once and stop sampling one channel. Usage: pointer release or explicit stop. */
+  /** Send neutral once and stop sampling one tracked channel. Usage: pointer release and safety cleanup. */
   clearControl(channel) {
-    if (!(channel in ZERO_VALUES)) return;
+    if (!(channel in ZERO_VALUES) || !this.values.delete(channel)) return;
     this.sendControlFrame(channel, ZERO_VALUES[channel]);
+  }
+
+  /** Send a neutral frame even without tracked intent. Usage: explicit Stop Pump and Stop Rotation buttons. */
+  stopControl(channel) {
+    if (!(channel in ZERO_VALUES)) return;
     this.values.delete(channel);
+    this.sendControlFrame(channel, ZERO_VALUES[channel]);
   }
 
   /** Neutralize every continuous output without acquiring or resuming a lease. Usage: every safety exit. */
