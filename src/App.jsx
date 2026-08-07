@@ -9,6 +9,7 @@ import { canOperate, initialPbmState, operationLabel, pbmReducer } from "./contr
 import { loadRuntimeConfig } from "./runtimeConfig.js";
 import { SigmundClient } from "./sigmundClient.js";
 import { useSafetyStops } from "./useSafetyStops.js";
+import { routeXyVector } from "./xyControl.js";
 import HoldControlButton from "./components/HoldControlButton.jsx";
 import PhaserGame from "./components/PhaserGame/PhaserGame.jsx";
 import StatusStrip from "./components/StatusStrip.jsx";
@@ -181,8 +182,7 @@ export default function App() {
 
   /** Route latest XY ratios only while the session owns control. Usage: Phaser callback. */
   const updateXy = useCallback((vector) => {
-    if (operatorReady) client?.setControl("xy_joystick", vector);
-    else client?.clearControl("xy_joystick");
+    routeXyVector(client, operatorReady, vector);
   }, [client, operatorReady]);
 
   const syringes = useMemo(() => state.profile?.syringes || [
