@@ -26,4 +26,27 @@ describe("PBM authoritative control state", () => {
     state = pbmReducer(state, { type: "command.lifecycle", command: "SwapSyringe", command_id: "pbm-113", state: "completed" });
     expect(state.operations.syringe_2.status).toBe("confirmed");
   });
+
+  it("shows the controller fault summary and lifecycle failure message", () => {
+    let state = pbmReducer(initialPbmState, {
+      type: "state",
+      payload: {
+        health: {
+          ok: true,
+          faulted: true,
+          devices: { pico: { faulted: true, fault_code: "estop", fault_summary: "Verify safety, then clear stop." } },
+        },
+      },
+    });
+    expect(state.health).toBe("faulted");
+    expect(state.fault).toMatchObject({ active: true, source: "pico", code: "estop" });
+    state = pbmReducer(state, {
+      type: "command.lifecycle",
+      command: "PaintingSessionStart",
+      command_id: "pbm-127",
+      state: "faulted",
+      message: "Painting persistence is not configured",
+    });
+    expect(state.notice).toBe("Painting persistence is not configured");
+  });
 });

@@ -59,6 +59,7 @@ export class SigmundClient {
     this.sampleTimer = null;
     this.reconnectTimer = null;
     this.heartbeatTimer = null;
+    this.ownsLease = false;
     this.closedByUser = false;
     this.status = "disconnected";
   }
@@ -104,6 +105,7 @@ export class SigmundClient {
     }
     this.setStatus("connected");
     this.startSampler();
+    this.logEvent("client_ready", { mode: this.config.mode });
   }
 
   /** Route correlated results and authoritative events. Usage: WebSocket message event. */
@@ -198,11 +200,16 @@ export class SigmundClient {
 
   /** Neutralize every continuous output without acquiring or resuming a lease. Usage: every safety exit. */
   stopContinuous(reason = "safety exit") {
+    const hadIntent = this.values.size > 0;
     for (const channel of Object.keys(ZERO_VALUES)) {
       if (this.values.has(channel)) this.sendControlFrame(channel, ZERO_VALUES[channel]);
     }
     this.values.clear();
-    this.emit({ type: "client.safety_stop", reason });
+    const announce = hadIntent || new Set(["Stop All", "socket loss", "lease loss", "lease heartbeat failed"]).has(reason);
+    if (announce) {
+      this.emit({ type: "client.safety_stop", reason });
+      this.logEvent("safety_stop", { reason });
+    }
   }
 
   /** Send Stop All through the server's sole arbiter. Usage: always-visible emergency UI. */
@@ -229,9 +236,11 @@ export class SigmundClient {
   /** Renew only a currently owned lease and stop on ownership loss. Usage: lease event handling. */
   updateHeartbeat(activeLease) {
     const ownsLease = activeLease?.holder === this.holder;
+    const lostOwnedLease = this.ownsLease && !ownsLease;
+    this.ownsLease = ownsLease;
     if (!ownsLease) {
       this.stopHeartbeat();
-      this.stopContinuous("lease loss");
+      if (lostOwnedLease) this.stopContinuous("lease loss");
       return;
     }
     if (!this.heartbeatTimer) {
@@ -268,6 +277,17 @@ export class SigmundClient {
   /** Serialize one WebSocket frame. Usage: all outbound traffic after readiness checks. */
   sendFrame(message) {
     if (this.isOpen()) this.socket.send(JSON.stringify(message));
+  }
+
+  /** Persist one low-volume local browser diagnostic through Sigmund. Usage: connection and safety transitions. */
+  logEvent(event, details = {}) {
+    if (this.config.mode !== "local" || !this.isOpen()) return;
+    this.sendFrame({
+      type: "pbm.client_event",
+      machine_id: this.config.machineId,
+      event,
+      details,
+    });
   }
 
   /** Report whether the socket can send. Usage: request and control guards. */

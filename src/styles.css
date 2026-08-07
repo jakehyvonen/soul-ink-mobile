@@ -54,6 +54,38 @@ h2 { font-size: 1.07rem; }
 .status.warn { color: var(--orange); border-color: #815c36; }
 .status.muted { color: var(--muted); }
 .notice { min-height: 1.4em; color: var(--muted); font-size: 0.83rem; }
+.diagnostics { margin-top: 5px; color: var(--muted); font-size: 0.73rem; }
+.diagnostics code { display: block; margin-top: 5px; overflow-wrap: anywhere; color: var(--cyan); }
+.fault-banner {
+  margin-top: 7px;
+  padding: 9px 13px;
+  border: 1px solid #9c4b54;
+  border-radius: 11px;
+  color: #ffd3d7;
+  background: #441722;
+  font-size: 0.83rem;
+}
+.setup-banner {
+  margin-top: 7px;
+  padding: 9px 13px;
+  border: 1px solid #815c36;
+  border-radius: 11px;
+  color: #ffd5ad;
+  background: #3d2816;
+  font-size: 0.83rem;
+}
+
+/* Usage: warn continuously that SQL-free local mode still moves real hardware. */
+.hardware-test-banner {
+  margin: 0 0 13px;
+  padding: 11px 13px;
+  border: 2px solid var(--danger);
+  border-radius: 11px;
+  color: #fff;
+  background: rgba(162, 29, 52, 0.82);
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
 
 .workflow-card, .joystick-card, .controls-card {
   margin-top: 13px;

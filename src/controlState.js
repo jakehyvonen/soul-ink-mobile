@@ -6,6 +6,7 @@
 export const initialPbmState = Object.freeze({
   connection: "disconnected",
   health: "unknown",
+  fault: { active: false, source: null, code: null, message: null },
   profile: null,
   machine: null,
   lease: { active: null, owned: false, mode: null },
@@ -30,6 +31,20 @@ function applicationState(payload, previous) {
   };
 }
 
+/** Extract the first actionable machine fault from authoritative health. Usage: state event reducer. */
+function machineFault(health) {
+  const devices = health?.devices || {};
+  const entry = Object.entries(devices).find(([, device]) => device?.faulted);
+  if (!entry) return { active: false, source: null, code: null, message: null };
+  const [source, device] = entry;
+  return {
+    active: true,
+    source,
+    code: device.fault_code || "unspecified",
+    message: device.fault_summary || device.last_error || `${source} reports a machine fault.`,
+  };
+}
+
 /** Convert connection, lease, lifecycle, and state events into renderable truth. Usage: useReducer. */
 export function pbmReducer(state, event) {
   switch (event.type) {
@@ -45,12 +60,13 @@ export function pbmReducer(state, event) {
       const workflow = applicationState(event.payload, state);
       const health = event.payload?.health;
       const healthStatus = typeof health === "object" && health !== null
-        ? (health.ok && !health.faulted ? "healthy" : "faulted")
+        ? (health.faulted ? "faulted" : health.ok ? "healthy" : "degraded")
         : health || "unknown";
       return {
         ...state,
         machine: event.payload,
         health: healthStatus,
+        fault: machineFault(health),
         ...workflow,
       };
     }
@@ -65,8 +81,20 @@ export function pbmReducer(state, event) {
         },
       };
     }
-    case "fault":
-      return { ...state, notice: event.message || event.payload?.message || "Machine fault" };
+    case "fault": {
+      const cleared = event.state === "cleared";
+      const message = event.message || event.payload?.message || "Machine fault";
+      return {
+        ...state,
+        fault: cleared ? { active: false, source: null, code: null, message: null } : {
+          active: true,
+          source: event.source || event.payload?.source || "machine",
+          code: event.code || event.payload?.code || "unspecified",
+          message,
+        },
+        notice: message,
+      };
+    }
     case "operation.requested":
       return {
         ...state,
@@ -90,6 +118,7 @@ export function pbmReducer(state, event) {
       const operationName = correlatedName || event.operation || event.command || event.payload?.operation || event.payload?.command;
       const lifecycle = event.state || event.payload?.state;
       if (!operationName || !lifecycle) return state;
+      const failed = ["failed", "faulted"].includes(lifecycle);
       return {
         ...state,
         operations: {
@@ -97,8 +126,10 @@ export function pbmReducer(state, event) {
           [operationName]: {
             status: lifecycle === "completed" ? "confirmed" : lifecycle,
             requestId: commandId,
+            error: failed ? event.message || event.payload?.message || "Command failed" : null,
           },
         },
+        notice: failed ? event.message || event.payload?.message || "Command failed" : state.notice,
       };
     }
     default:

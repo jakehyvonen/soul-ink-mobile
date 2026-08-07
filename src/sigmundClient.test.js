@@ -104,4 +104,16 @@ describe("SigmundClient", () => {
     expect(socket.sent.at(-1)).toMatchObject({ channel: "table_rotation", payload: { velocity_ratio: 0 } });
     client.disconnect();
   });
+
+  it("does not announce lease loss before it ever owned the lease", async () => {
+    const client = createClient();
+    const events = [];
+    client.subscribe((event) => events.push(event));
+    await client.connect();
+    const socket = FakeWebSocket.instances[0];
+    socket.open();
+    socket.receive({ type: "lease", payload: { active: null } });
+    expect(events.filter((event) => event.type === "client.safety_stop")).toHaveLength(0);
+    client.disconnect();
+  });
 });

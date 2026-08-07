@@ -114,6 +114,7 @@ export default function App() {
       return result;
     } catch (error) {
       dispatch({ type: "operation.failed", name, error: error.message });
+      client?.logEvent("operation_failed", { operation: name, error: error.message });
       throw error;
     }
   }, [client]);
@@ -122,11 +123,29 @@ export default function App() {
   async function beginPainting() {
     try {
       await runOperation("lease", "lease.acquire", { mode: "operator" });
+      if (state.machine?.xy?.estop) {
+        const error = new Error("Pico E-stop is latched. Verify the machine is safe, then select Clear Stop.");
+        dispatch({ type: "operation.failed", name: "painting_session_start", error: error.message });
+        client?.logEvent("operation_failed", { operation: "painting_session_start", error: error.message });
+        throw error;
+      }
+      const persistence = state.profile?.workflow_capabilities?.pbm?.persistence;
+      if (persistence?.configured === false) {
+        const error = new Error(persistence.message);
+        dispatch({ type: "operation.failed", name: "painting_session_start", error: error.message });
+        client?.logEvent("operation_failed", { operation: "painting_session_start", error: error.message });
+        throw error;
+      }
       await runOperation("painting_session_start", "painting_session_start");
       await fullscreen.enter();
     } catch {
       client?.stopContinuous("session start failed");
     }
+  }
+
+  /** Clear a verified latched Pico stop without starting a session or output. Usage: explicit Clear Stop button. */
+  async function clearMachineStop() {
+    await runOperation("machine_clear_stop", "safety.clear_stop").catch(() => undefined);
   }
 
   /** Stop outputs, finish persistence, and release the lease in server order. Usage: End Painting. */
@@ -169,6 +188,7 @@ export default function App() {
   const syringes = useMemo(() => state.profile?.syringes || [
     { id: 0, label: "Blue" }, { id: 1, label: "Red" }, { id: 2, label: "White" }, { id: 3, label: "Purple" },
   ], [state.profile]);
+  const persistence = state.profile?.workflow_capabilities?.pbm?.persistence;
 
   if (!config) return <main className="boot-screen"><h1>Sigmund PBM</h1><p>{state.notice}</p></main>;
   if (config.auth === "supabase" && !authSession) {
@@ -195,12 +215,32 @@ export default function App() {
         </header>
 
         <StatusStrip state={state} />
+        {state.fault.active && (
+          <p className="fault-banner" role="alert">
+            {String(state.fault.source).toUpperCase()} {state.fault.code}: {state.fault.message}
+          </p>
+        )}
+        {persistence?.configured === false && (
+          <p className="setup-banner" role="status">{persistence.message}</p>
+        )}
+        {state.profile?.workflow_capabilities?.pbm?.memory_mode && (
+          <p className="hardware-test-banner" role="alert">
+            LOCAL HARDWARE TEST: motion is enabled. Painting data is held in memory and will not be saved.
+          </p>
+        )}
         <p className="notice" role="status">{state.notice}</p>
+        {state.profile?.pbm_log?.path && (
+          <details className="diagnostics">
+            <summary>Diagnostics</summary>
+            <code>PBM log: {state.profile.pbm_log.path}</code>
+          </details>
+        )}
 
         <section className="workflow-card" aria-label="Painting session">
           <div className="section-heading"><h2>Painting session</h2><span>{operatorReady ? "controls live" : "read-only"}</span></div>
           <div className="button-row">
             <TaskButton state={state} operation="painting_session_start" label="Begin Painting" tone="good" onClick={beginPainting} disabled={state.session.active || state.connection !== "connected"} />
+            <TaskButton state={state} operation="machine_clear_stop" label="Clear Stop" tone="warn" onClick={clearMachineStop} disabled={!state.lease.owned} />
             <TaskButton state={state} operation="painting_session_end" label="End Painting" tone="warn" onClick={endPainting} disabled={!state.session.active} />
             <TaskButton
               state={state}

@@ -13,7 +13,21 @@ npm.cmd run build
 npm.cmd run dev
 ```
 
-The development server is loopback-only at `http://127.0.0.1:5171`. A production build uses relative asset URLs so the same output works below `/pbm/` or on a static subdomain.
+The development server is loopback-only at `http://127.0.0.1:5171`. It proxies
+`/ws` to Sigmund at `http://127.0.0.1:8089` by default, so VS Code development
+uses `npm.cmd run dev` in one terminal and
+`python -m pi4_debug_gui.server --hardware --pbm-memory --host 127.0.0.1 --port 8089` in
+another. Open port `5171` for live Vite changes; opening `/pbm/` on port `8089`
+uses the last production build instead. Set `SIGMUND_DEV_URL` before Vite only
+when the local backend uses another address. A production build uses relative
+asset URLs so the same output works below `/pbm/` or on a static subdomain.
+
+For a one-process local test, run `npm.cmd run build` once, start Sigmund with
+`--pbm-memory`, and open `http://127.0.0.1:8089/pbm/`. This mode connects and
+moves real hardware; it replaces only PostgreSQL persistence with volatile
+run, motif, and gesture recording. The app shows a persistent red warning, and
+all volatile painting data disappears when Sigmund exits. Omitting
+`--pbm-memory` restores mandatory PostgreSQL persistence.
 
 ## Runtime configuration
 
