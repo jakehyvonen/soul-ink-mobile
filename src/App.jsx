@@ -106,10 +106,11 @@ export default function App() {
 
   /** Run a discrete action without pretending it completed. Usage: all task buttons. */
   const runOperation = useCallback(async (name, type, fields = {}) => {
-    dispatch({ type: "operation.requested", name });
+    const pending = client.sendRequest(type, fields);
+    dispatch({ type: "operation.requested", name, requestId: pending.requestId });
     try {
-      const result = await client.sendRequest(type, fields);
-      dispatch({ type: "operation.accepted", name, requestId: result.command_id });
+      const result = await pending;
+      dispatch({ type: "operation.accepted", name, requestId: result.request_id });
       return result;
     } catch (error) {
       dispatch({ type: "operation.failed", name, error: error.message });

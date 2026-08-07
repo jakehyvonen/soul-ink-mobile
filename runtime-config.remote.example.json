@@ -1,0 +1,9 @@
+{
+  "descriptor": "Usage: copy these public values to dist/runtime-config.json for an approved remote PBM deployment.",
+  "mode": "remote",
+  "controlUrl": "wss://relay.pbm.example.com/ws",
+  "machineId": "sigmund-1",
+  "auth": "supabase",
+  "supabaseUrl": "https://project-ref.supabase.co",
+  "supabasePublishableKey": "publishable-key-from-supabase-dashboard"
+}

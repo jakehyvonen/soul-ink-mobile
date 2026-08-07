@@ -119,10 +119,15 @@ export class SigmundClient {
       const pending = this.pending.get(message.request_id);
       clearTimeout(pending.timeout);
       this.pending.delete(message.request_id);
-      if (message.payload?.ok) pending.resolve(message.payload);
+      if (message.payload?.ok) pending.resolve({ ...message.payload, request_id: message.request_id });
       else pending.reject(new Error(message.payload?.error || message.payload?.reason || "Request rejected"));
     }
-    if (message.type === "lease") this.updateHeartbeat(message.payload?.active ?? message.active ?? null);
+    if (message.type === "relay.error") {
+      this.emit({ type: "client.error", error: message.error || "Relay rejected the request" });
+    }
+    if (message.type === "lease") {
+      this.updateHeartbeat(message.payload?.active ?? message.active ?? message.lease ?? null);
+    }
     this.emit(message);
   }
 
@@ -155,7 +160,7 @@ export class SigmundClient {
   /** Send one correlated discrete request with a finite deadline. Usage: lease, session, and task actions. */
   sendRequest(type, fields = {}, timeoutMs = REQUEST_EXPIRY_MS) {
     const requestId = `${this.holder}-${++this.requestSequence}`;
-    return new Promise((resolve, reject) => {
+    const request = new Promise((resolve, reject) => {
       if (!this.isOpen()) {
         reject(new Error("Sigmund is disconnected"));
         return;
@@ -165,8 +170,18 @@ export class SigmundClient {
         reject(new Error(`${type} timed out`));
       }, timeoutMs);
       this.pending.set(requestId, { resolve, reject, timeout });
-      this.sendFrame({ type, request_id: requestId, machine_id: this.config.machineId, ...fields });
+      const sentAt = Date.now();
+      this.sendFrame({
+        type,
+        request_id: requestId,
+        machine_id: this.config.machineId,
+        sent_at: new Date(sentAt).toISOString(),
+        expires_at: new Date(sentAt + Math.min(timeoutMs, REQUEST_EXPIRY_MS)).toISOString(),
+        ...fields,
+      });
     });
+    request.requestId = requestId;
+    return request;
   }
 
   /** Store the latest normalized control value for 53 ms sampling. Usage: joystick, tilt, pump, rotation. */
@@ -237,12 +252,15 @@ export class SigmundClient {
     if (!this.isOpen()) return;
     const sequence = (this.sequences.get(channel) || 0) + 1;
     this.sequences.set(channel, sequence);
+    const sentAt = Date.now();
     this.sendFrame({
       type: "control.update",
       request_id: `${this.holder}-${channel}-${sequence}`,
       machine_id: this.config.machineId,
       channel,
       sequence,
+      sent_at: new Date(sentAt).toISOString(),
+      expires_at: new Date(sentAt + 503).toISOString(),
       payload: values,
     });
   }

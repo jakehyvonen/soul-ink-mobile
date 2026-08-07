@@ -20,10 +20,10 @@ describe("PBM authoritative control state", () => {
   });
 
   it("does not treat an accepted syringe request as confirmed", () => {
-    let state = pbmReducer(initialPbmState, { type: "operation.requested", name: "syringe_2" });
-    state = pbmReducer(state, { type: "operation.accepted", name: "syringe_2" });
+    let state = pbmReducer(initialPbmState, { type: "operation.requested", name: "syringe_2", requestId: "pbm-113" });
+    state = pbmReducer(state, { type: "operation.accepted", name: "syringe_2", requestId: "pbm-113" });
     expect(state.operations.syringe_2.status).toBe("accepted");
-    state = pbmReducer(state, { type: "command.lifecycle", operation: "syringe_2", state: "completed" });
+    state = pbmReducer(state, { type: "command.lifecycle", command: "SwapSyringe", command_id: "pbm-113", state: "completed" });
     expect(state.operations.syringe_2.status).toBe("confirmed");
   });
 });

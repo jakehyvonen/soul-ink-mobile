@@ -32,6 +32,8 @@ The development server is loopback-only at `http://127.0.0.1:5171`. A production
 
 An empty local `controlUrl` resolves to `/ws` on the current origin. Remote mode requires `wss://`, `auth: "supabase"`, and a Supabase publishable key. Never place service-role keys, machine credentials, or other secrets in this file.
 
+`runtime-config.remote.example.json` is the public-only template for the gated InMotion deployment. Copy it over `dist/runtime-config.json` only after the remote relay and dedicated Supabase project are approved and provisioned.
+
 ## Safety model
 
 - Opening PBM connects read-only. `Begin Painting` explicitly acquires the operator lease and starts one painting session.

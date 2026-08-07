@@ -60,6 +60,7 @@ describe("SigmundClient", () => {
     client.setControl("xy_joystick", { x_ratio: 0.75, y_ratio: -0.25 });
     await vi.advanceTimersByTimeAsync(CONTROL_SAMPLE_MS);
     expect(socket.sent.at(-1)).toMatchObject({ channel: "xy_joystick", sequence: 1, payload: { x_ratio: 0.75, y_ratio: -0.25 } });
+    expect(Date.parse(socket.sent.at(-1).expires_at) - Date.parse(socket.sent.at(-1).sent_at)).toBe(503);
     await vi.advanceTimersByTimeAsync(CONTROL_SAMPLE_MS);
     expect(socket.sent.at(-1).sequence).toBe(2);
     client.disconnect();
@@ -73,7 +74,7 @@ describe("SigmundClient", () => {
     const pending = client.sendRequest("painting_session_start");
     const request = socket.sent.at(-1);
     socket.receive({ type: "request.result", request_id: request.request_id, payload: { ok: true, session_id: "session-109" } });
-    await expect(pending).resolves.toMatchObject({ session_id: "session-109" });
+    await expect(pending).resolves.toMatchObject({ session_id: "session-109", request_id: request.request_id });
     client.disconnect();
   });
 

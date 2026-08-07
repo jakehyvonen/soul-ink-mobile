@@ -43,15 +43,19 @@ export function pbmReducer(state, event) {
       return { ...state, profile: event.payload };
     case "state": {
       const workflow = applicationState(event.payload, state);
+      const health = event.payload?.health;
+      const healthStatus = typeof health === "object" && health !== null
+        ? (health.ok && !health.faulted ? "healthy" : "faulted")
+        : health || "unknown";
       return {
         ...state,
         machine: event.payload,
-        health: event.payload?.health?.overall || event.payload?.health || "unknown",
+        health: healthStatus,
         ...workflow,
       };
     }
     case "lease": {
-      const active = event.payload?.active ?? event.active ?? null;
+      const active = event.payload?.active ?? event.active ?? event.lease ?? null;
       return {
         ...state,
         lease: {
@@ -69,6 +73,7 @@ export function pbmReducer(state, event) {
         operations: { ...state.operations, [event.name]: { status: "requested", requestId: event.requestId || null } },
       };
     case "operation.accepted":
+      if (["confirmed", "failed", "faulted"].includes(state.operations[event.name]?.status)) return state;
       return {
         ...state,
         operations: { ...state.operations, [event.name]: { status: "accepted", requestId: event.requestId || null } },
@@ -80,7 +85,9 @@ export function pbmReducer(state, event) {
         notice: event.error,
       };
     case "command.lifecycle": {
-      const operationName = event.operation || event.command || event.payload?.operation || event.payload?.command;
+      const commandId = event.command_id || event.payload?.command_id || null;
+      const correlatedName = Object.entries(state.operations).find(([, operation]) => operation.requestId === commandId)?.[0];
+      const operationName = correlatedName || event.operation || event.command || event.payload?.operation || event.payload?.command;
       const lifecycle = event.state || event.payload?.state;
       if (!operationName || !lifecycle) return state;
       return {
@@ -89,7 +96,7 @@ export function pbmReducer(state, event) {
           ...state.operations,
           [operationName]: {
             status: lifecycle === "completed" ? "confirmed" : lifecycle,
-            requestId: event.command_id || event.payload?.command_id || null,
+            requestId: commandId,
           },
         },
       };
