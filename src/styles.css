@@ -1,79 +1,107 @@
-.App {
-  text-align: center;
+/* Descriptor: Responsive dark PBM control surface with colorful safety semantics. */
+/* Usage: main.jsx imports this once for the fullscreen mobile application. */
+
+:root {
+  color: #edf8fa;
+  background: #0a1015;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+  --panel: #141f27;
+  --panel-raised: #1b2a34;
+  --line: #31505c;
+  --cyan: #52d7d0;
+  --orange: #ff9e44;
+  --green: #7de38a;
+  --red: #ff6675;
+  --purple: #c296ff;
+  --muted: #91a6af;
 }
 
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
+* { box-sizing: border-box; }
+html, body, #root { min-width: 100%; min-height: 100%; margin: 0; }
+body { overscroll-behavior: none; }
+button { font: inherit; touch-action: manipulation; }
+
+.pbm-app {
+  min-height: 100dvh;
+  padding: max(13px, env(safe-area-inset-top)) max(17px, env(safe-area-inset-right)) max(17px, env(safe-area-inset-bottom)) max(17px, env(safe-area-inset-left));
+  background: radial-gradient(circle at 75% 0%, #183847 0, #0a1015 41rem);
+}
+
+header, .section-heading, .button-row, .status-strip, .task-grid, .hold-grid { display: flex; }
+header { align-items: center; justify-content: space-between; gap: 17px; }
+h1, h2, p { margin: 0; }
+h1 { font-size: clamp(1.53rem, 4vw, 2.31rem); letter-spacing: -0.03em; }
+h2 { font-size: 1.07rem; }
+.eyebrow { color: var(--cyan); font-size: 0.73rem; text-transform: uppercase; letter-spacing: 0.13em; }
+
+.stop-all {
+  min-height: 53px;
+  min-width: 131px;
+  border: 2px solid #ff9ba4;
+  border-radius: 13px;
   color: white;
+  background: linear-gradient(145deg, #ba2437, #7c1324);
+  box-shadow: 0 0 23px #ff667544;
+  font-weight: 900;
+  letter-spacing: 0.07em;
 }
 
-.App-link {
-  color: #61dafb;
+.stop-all:disabled, button:disabled { opacity: 0.43; cursor: not-allowed; }
+.status-strip { gap: 7px; flex-wrap: wrap; margin: 13px 0 7px; }
+.status { border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px; background: #101a20; font-size: 0.73rem; }
+.status.good { color: var(--green); border-color: #3e8f5a; }
+.status.warn { color: var(--orange); border-color: #815c36; }
+.status.muted { color: var(--muted); }
+.notice { min-height: 1.4em; color: var(--muted); font-size: 0.83rem; }
+
+.workflow-card, .joystick-card, .controls-card {
+  margin-top: 13px;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 17px;
+  background: color-mix(in srgb, var(--panel) 93%, transparent);
+  box-shadow: 0 13px 37px #0007;
 }
 
-.gestureDiaBox {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -5%) rotate(90deg);
-  width: 70vh; 
-  height: 70vw;
+.section-heading { align-items: baseline; justify-content: space-between; gap: 13px; margin-bottom: 11px; }
+.section-heading span { color: var(--muted); font-size: 0.73rem; }
+.button-row, .task-grid, .hold-grid { gap: 11px; flex-wrap: wrap; }
+.button-row > *, .task-grid > *, .hold-grid > * { flex: 1 1 113px; }
+.control-layout { display: grid; grid-template-columns: minmax(283px, 1fr) minmax(313px, 1.1fr); gap: 13px; }
+
+.task-button, .control-button {
+  min-height: 47px;
+  padding: 9px 13px;
+  border: 1px solid #52707d;
+  border-radius: 11px;
+  color: #edf8fa;
+  background: linear-gradient(145deg, #263945, #17242c);
+  font-weight: 700;
 }
 
-.overlay {
-  position: fixed;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 999;
-  background-color: rgba(0, 0, 0, 0.5); /* Adjust the background color and opacity as needed */
+.task-button.good, .control-button.good { border-color: #4c9a61; color: var(--green); }
+.task-button.warn, .control-button.warn, .control-button.stop { border-color: #9c4b54; color: var(--red); }
+.task-button.record, .control-button.record { border-color: #c46d34; color: var(--orange); }
+.task-button.replay { border-color: #7653a8; color: var(--purple); }
+.control-button.accent { border-color: #398b89; color: var(--cyan); }
+.control-button.pump { border-color: #bd6f39; color: var(--orange); }
+.task-button:active, .control-button:active { transform: translateY(1px); filter: brightness(1.27); }
+
+.joystick-shell { width: min(100%, 467px); aspect-ratio: 1; margin: -17px auto; touch-action: none; }
+.joystick-shell canvas { max-width: 100%; max-height: 100%; }
+.joystick-shell.is-disabled { opacity: 0.31; filter: grayscale(0.83); pointer-events: none; }
+.boot-screen { min-height: 100dvh; display: grid; place-content: center; gap: 13px; padding: 23px; text-align: center; background: #0a1015; color: #edf8fa; }
+.boot-screen button { min-height: 47px; border: 1px solid var(--cyan); border-radius: 11px; background: #15272d; color: var(--cyan); }
+
+@media (max-width: 719px) {
+  .control-layout { grid-template-columns: 1fr; }
+  .joystick-shell { max-height: 53dvh; }
 }
 
-
-
-#stream{
-  width: 100vw;
-  height: 100vh;
-  position: absolute;
-}
-
-#phasergame{
-  width: 100vw;
-  height: 100vh;
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 10;
-}
-
-#container{  
-  width: 100vw;
-  height: 100vh;
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 10;
-}
-
-#fsbutton{
-  z-index: 11;
-  position: absolute;
-}
-
-#stackPanel {
-  display: flex;
-  flex-direction: column; /* This will stack children vertically */
-  align-items: center;    /* This will center children horizontally */
-  justify-content: center;/* This will center children vertically */
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) rotate(90deg);
+@media (orientation: landscape) and (max-height: 719px) {
+  .pbm-app { padding-top: max(7px, env(safe-area-inset-top)); }
+  .control-layout { grid-template-columns: minmax(253px, 0.87fr) minmax(373px, 1.31fr); }
+  .joystick-shell { height: calc(100dvh - 213px); width: auto; }
+  .workflow-card, .joystick-card, .controls-card { margin-top: 7px; padding: 11px; }
 }

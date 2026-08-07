@@ -1,0 +1,9 @@
+{
+  "descriptor": "Local PBM runtime configuration served unbundled for deployment-specific endpoints.",
+  "mode": "local",
+  "controlUrl": "",
+  "machineId": "sigmund-local",
+  "auth": "none",
+  "supabaseUrl": "",
+  "supabasePublishableKey": ""
+}

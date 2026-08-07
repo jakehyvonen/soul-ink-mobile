@@ -1,70 +1,43 @@
-# Getting Started with Create React App
+# Sigmund PBM Web
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Descriptor: mobile React/Phaser controls for painting with Sigmund through a documented native WebSocket contract.
 
-## Available Scripts
+Usage: develop locally with Node 24, build `dist/`, and let the canonical Pi service mount that output at `/pbm/`. The browser never connects directly to a controller or defines physical limits.
 
-In the project directory, you can run:
+## Commands
 
-### `npm start`
+```powershell
+npm.cmd install
+npm.cmd test
+npm.cmd run build
+npm.cmd run dev
+```
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+The development server is loopback-only at `http://127.0.0.1:5171`. A production build uses relative asset URLs so the same output works below `/pbm/` or on a static subdomain.
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## Runtime configuration
 
-### `npm test`
+`public/runtime-config.json` is copied next to the built application and intentionally remains unbundled. It contains only public deployment settings:
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+```json
+{
+  "mode": "local",
+  "controlUrl": "",
+  "machineId": "sigmund-local",
+  "auth": "none",
+  "supabaseUrl": "",
+  "supabasePublishableKey": ""
+}
+```
 
-### `npm run build`
+An empty local `controlUrl` resolves to `/ws` on the current origin. Remote mode requires `wss://`, `auth: "supabase"`, and a Supabase publishable key. Never place service-role keys, machine credentials, or other secrets in this file.
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## Safety model
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+- Opening PBM connects read-only. `Begin Painting` explicitly acquires the operator lease and starts one painting session.
+- The joystick, phone tilt, pump, and rotary controls send normalized latest values every 53 ms. The Pi owns scaling and clamping.
+- Pointer release/cancel, capture loss, blur, page hide, visibility loss, socket loss, lease loss, and session end clear continuous intent. Reconnection starts with no active outputs.
+- Syringe, recording, replay, pump, and rotary presentation follows server events. A request acceptance is not shown as physical confirmation.
+- `STOP ALL` remains visible above every workflow.
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
-
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
-
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+The old `server/` directory is retained only as a Git-history-era protocol reference. No current package script starts its Socket.IO, ngrok, or raw TCP bridge.
