@@ -1,8 +1,8 @@
-# Sigmund PBM Web
+# Soul Ink Mobile
 
-Descriptor: mobile React/Phaser controls for painting with Sigmund through a documented native WebSocket contract.
+Descriptor: shared React and Phaser controls for painting with Sigmund through the bounded Pi WebSocket contract.
 
-Usage: develop locally with Node 24, build `dist/`, and let the canonical Pi service mount that output at `/pbm/`. The browser never connects directly to a controller or defines physical limits.
+Usage: pin this repository from both SoulInk and `dev-raspi`, build with Node 24, and serve the same revision at Studio `/mobile/`, Studio `/de/mobile/`, and Pi-local `/mobile/`. `/pbm/` remains a temporary redirect alias during migration.
 
 ## Commands
 
@@ -13,47 +13,27 @@ npm.cmd run build
 npm.cmd run dev
 ```
 
-The development server is loopback-only at `http://127.0.0.1:5171`. It proxies
-`/ws` to Sigmund at `http://127.0.0.1:8089` by default, so VS Code development
-uses `npm.cmd run dev` in one terminal and
-`python -m pi4_debug_gui.server --hardware --pbm-memory --host 127.0.0.1 --port 8089` in
-another. Open port `5171` for live Vite changes; opening `/pbm/` on port `8089`
-uses the last production build instead. Set `SIGMUND_DEV_URL` before Vite only
-when the local backend uses another address. A production build uses relative
-asset URLs so the same output works below `/pbm/` or on a static subdomain.
+The development server is loopback-only at `http://127.0.0.1:5171`. It proxies `/ws` to `http://127.0.0.1:8089` by default. The Pi-local build uses the unbundled `public/runtime-config.json`, connects read-only, and preserves explicit local operator handoff for the existing fallback workflow.
 
-For a one-process local test, run `npm.cmd run build` once, start Sigmund with
-`--pbm-memory`, and open `http://127.0.0.1:8089/pbm/`. This mode connects and
-moves real hardware; it replaces only PostgreSQL persistence with volatile
-run, motif, and gesture recording. The app shows a persistent red warning, and
-all volatile painting data disappears when Sigmund exits. Omitting
-`--pbm-memory` restores mandatory PostgreSQL persistence.
+## Studio pairing
 
-## Runtime configuration
+The Studio build replaces `dist/runtime-config.json` with the public values from `runtime-config.remote.example.json`. Its `auth: "pairing"` flow:
 
-`public/runtime-config.json` is copied next to the built application and intentionally remains unbundled. It contains only public deployment settings:
+1. removes `#pair=...` from browser history before making a request;
+2. claims the single-use token through the same-origin Studio API;
+3. receives a short-lived WebSocket admission while the durable controller credential stays in a Secure, HttpOnly cookie;
+4. stores only the public control-session ID in session storage; and
+5. requests a fresh single-use admission after a safe reconnect.
 
-```json
-{
-  "mode": "local",
-  "controlUrl": "",
-  "machineId": "sigmund-local",
-  "auth": "none",
-  "supabaseUrl": "",
-  "supabasePublishableKey": ""
-}
-```
-
-An empty local `controlUrl` resolves to `/ws` on the current origin. Remote mode requires `wss://`, `auth: "supabase"`, and a Supabase publishable key. Never place service-role keys, machine credentials, or other secrets in this file.
-
-`runtime-config.remote.example.json` is the public-only template for the gated InMotion deployment. Copy it over `dist/runtime-config.json` only after the remote relay and dedicated Supabase project are approved and provisioned.
+No Supabase token, pairing secret, gateway secret, or Pi credential belongs in the browser bundle or runtime configuration.
 
 ## Safety model
 
-- Opening PBM connects read-only. Local `Begin Painting` explicitly takes over an idle Main-GUI operator lease, neutralizes continuous outputs without latching Stop All, and starts one painting session. Remote mode cannot request this local handoff.
-- The joystick, phone tilt, pump, and rotary controls send normalized latest values every 53 ms. The Pi owns scaling and clamping.
-- Pointer release/cancel, capture loss, blur, page hide, visibility loss, socket loss, lease loss, and session end clear continuous intent. Reconnection starts with no active outputs.
-- Syringe, recording, replay, pump, and rotary presentation follows server events. A request acceptance is not shown as physical confirmation.
-- `STOP ALL` remains visible above every workflow.
+- Opening Soul Ink Mobile connects read-only. `Begin Painting` is the only path that requests an operator lease.
+- Studio mode always sends `local_handoff: false`; it cannot preempt a local or remote operator.
+- The joystick, phone tilt, pump, and rotary controls send normalized latest values every 53 ms. The Pi owns scaling, limits, arbitration, and device authority.
+- Pointer release or cancel, capture loss, blur, page hide, visibility loss, socket loss, lease loss, host suspension, and session end neutralize continuous intent.
+- Reconnection starts with no active outputs and requires the user to select `Begin Painting` again before controls become live.
+- `STOP ALL` remains visible above every workflow. Raw controller, maintenance, homing, calibration, settings, reconnect, and stop-clearing ports are never exposed through the Studio gateway.
 
-The old `server/` directory is retained only as a Git-history-era protocol reference. No current package script starts its Socket.IO, ngrok, or raw TCP bridge.
+The historical `server/` directory is retained only as a protocol reference. No package script starts its Socket.IO, ngrok, or raw TCP bridge. Existing `pbm` database and machine-event domain names remain compatibility contracts until a separately validated migration.

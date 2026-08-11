@@ -1,9 +1,7 @@
 {
-  "descriptor": "Usage: copy these public values to dist/runtime-config.json for an approved remote PBM deployment.",
+  "descriptor": "Usage: copy these public values beside each approved Studio-hosted Soul Ink Mobile build.",
   "mode": "remote",
-  "controlUrl": "wss://relay.pbm.example.com/ws",
-  "machineId": "sigmund-1",
-  "auth": "supabase",
-  "supabaseUrl": "https://project-ref.supabase.co",
-  "supabasePublishableKey": "publishable-key-from-supabase-dashboard"
+  "controlUrl": "",
+  "machineId": "",
+  "auth": "pairing"
 }

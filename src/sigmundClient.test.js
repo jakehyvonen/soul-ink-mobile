@@ -46,6 +46,19 @@ function createClient() {
   });
 }
 
+/** Construct a paired remote client with one deterministic admission. */
+function createPairedClient() {
+  const admission = {
+    ticket: `${"a".repeat(53)}.${"b".repeat(53)}`,
+    websocketUrl: "wss://control.soul-ink.art/v1/machines/sigmund/socket",
+  };
+  return new SigmundClient(validateRuntimeConfig({ auth: "pairing", machineId: "sigmund", mode: "remote" }), {
+    admissionProvider: async () => admission,
+    WebSocketImpl: FakeWebSocket,
+    holder: "mobile-127",
+  });
+}
+
 describe("SigmundClient", () => {
   beforeEach(() => { vi.useFakeTimers(); FakeWebSocket.instances = []; });
   afterEach(() => vi.useRealTimers());
@@ -63,6 +76,21 @@ describe("SigmundClient", () => {
     expect(Date.parse(socket.sent.at(-1).expires_at) - Date.parse(socket.sent.at(-1).sent_at)).toBe(503);
     await vi.advanceTimersByTimeAsync(CONTROL_SAMPLE_MS);
     expect(socket.sent.at(-1).sequence).toBe(2);
+    client.disconnect();
+  });
+
+  it("authenticates a paired controller before reporting connected", async () => {
+    const client = createPairedClient();
+    const events = [];
+    client.subscribe((event) => events.push(event));
+    await client.connect();
+    const socket = FakeWebSocket.instances[0];
+    expect(socket.url).toBe("wss://control.soul-ink.art/v1/machines/sigmund/socket");
+    socket.open();
+    expect(socket.sent[0]).toMatchObject({ type: "participant.authenticate" });
+    expect(events).not.toContainEqual({ type: "client.status", status: "connected" });
+    socket.receive({ type: "authentication.accepted", role: "controller" });
+    expect(events).toContainEqual({ type: "client.status", status: "connected" });
     client.disconnect();
   });
 

@@ -1,13 +1,12 @@
 {
-  "name": "sigmund-pbm-web",
+  "name": "@soul-ink/mobile",
   "version": "0.2.0",
   "private": true,
-  "description": "Mobile painting controls for Sigmund, served locally or through an authenticated relay.",
+  "description": "Soul Ink Mobile controls for Sigmund, served locally or through protected Studio pairing.",
   "engines": {
     "node": ">=24.0.0 <25"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.55.0",
     "phaser": "^3.60.0",
     "phaser3-rex-plugins": "^1.60.1",
     "react": "^18.2.0",

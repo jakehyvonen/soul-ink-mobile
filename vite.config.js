@@ -1,6 +1,6 @@
 /**
- * Descriptor: Vite and Vitest configuration for a subpath-safe PBM build.
- * Usage: `npm run build` emits `dist/` assets whose URLs resolve under `/pbm/`.
+ * Descriptor: Vite and Vitest configuration for a subpath-safe Soul Ink Mobile build.
+ * Usage: `npm run build` emits `dist/` assets that resolve under `/mobile/` and the `/pbm/` alias.
  */
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";

@@ -1,9 +1,7 @@
 {
-  "descriptor": "Local PBM runtime configuration served unbundled for deployment-specific endpoints.",
+  "descriptor": "Local Soul Ink Mobile configuration; serve the built app from the Pi at /mobile/.",
   "mode": "local",
   "controlUrl": "",
   "machineId": "sigmund-local",
-  "auth": "none",
-  "supabaseUrl": "",
-  "supabasePublishableKey": ""
+  "auth": "none"
 }

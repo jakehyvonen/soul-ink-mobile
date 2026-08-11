@@ -1,6 +1,6 @@
 /**
- * Descriptor: Native WebSocket client with correlated requests and latest-value controls.
- * Usage: create one client per PBM browser session and subscribe to authoritative events.
+ * Descriptor: native WebSocket client with correlated requests and latest-value controls.
+ * Usage: create one client per Soul Ink Mobile session and subscribe to authoritative events.
  */
 import { resolveControlUrl } from "./runtimeConfig.js";
 
@@ -18,7 +18,7 @@ const ZERO_VALUES = Object.freeze({
 /** Create a stable browser holder identifier. Usage: add to local WebSocket query string. */
 function createHolderId() {
   const suffix = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
-  return `pbm-${suffix}`;
+  return `mobile-${suffix}`;
 }
 
 /** Clamp normalized browser values before they leave the UI. Usage: control payload normalization. */
@@ -41,14 +41,14 @@ export function normalizeControl(channel, values) {
 }
 
 /**
- * Own one safe PBM transport session and its continuous-control sampling.
+ * Own one safe Soul Ink Mobile transport session and its continuous-control sampling.
  * Usage: App calls connect, sendRequest, setControl, stopContinuous, then disconnect.
  */
 export class SigmundClient {
   constructor(config, options = {}) {
     this.config = config;
     this.WebSocketImpl = options.WebSocketImpl || globalThis.WebSocket;
-    this.tokenProvider = options.tokenProvider || (async () => "");
+    this.admissionProvider = options.admissionProvider || null;
     this.holder = options.holder || createHolderId();
     this.socket = null;
     this.listeners = new Set();
@@ -62,6 +62,7 @@ export class SigmundClient {
     this.ownsLease = false;
     this.closedByUser = false;
     this.status = "disconnected";
+    this.admission = null;
   }
 
   /** Subscribe to connection and machine events. Usage: React state hook; returns unsubscribe. */
@@ -80,28 +81,38 @@ export class SigmundClient {
     if (this.socket && this.socket.readyState <= 1) return;
     this.closedByUser = false;
     this.setStatus("connecting");
-    const baseUrl = resolveControlUrl(this.config);
-    const url = new URL(baseUrl);
-    if (this.config.mode === "local") {
-      url.searchParams.set("holder", this.holder);
-      url.searchParams.set("auto_lease", "false");
+    try {
+      this.admission = this.config.auth === "pairing" ? await this.admissionProvider?.() : null;
+      if (this.config.auth === "pairing" && !this.admission) {
+        throw new Error("Controller pairing is required.");
+      }
+      const baseUrl = this.admission?.websocketUrl || resolveControlUrl(this.config);
+      const url = new URL(baseUrl);
+      if (this.config.mode === "local") {
+        url.searchParams.set("holder", this.holder);
+        url.searchParams.set("auto_lease", "false");
+      }
+      this.socket = new this.WebSocketImpl(url.toString());
+      this.socket.addEventListener("open", () => this.handleOpen());
+      this.socket.addEventListener("message", (event) => this.handleMessage(event));
+      this.socket.addEventListener("close", () => this.handleClose());
+      this.socket.addEventListener("error", () => this.emit({ type: "client.error", error: "WebSocket error" }));
+    } catch (error) {
+      this.setStatus("disconnected");
+      this.emit({ type: "client.error", error: error.message || "Controller admission failed" });
+      if (!this.closedByUser) {
+        clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = setTimeout(() => this.connect(), RECONNECT_DELAY_MS);
+      }
     }
-    this.socket = new this.WebSocketImpl(url.toString());
-    this.socket.addEventListener("open", () => this.handleOpen());
-    this.socket.addEventListener("message", (event) => this.handleMessage(event));
-    this.socket.addEventListener("close", () => this.handleClose());
-    this.socket.addEventListener("error", () => this.emit({ type: "client.error", error: "WebSocket error" }));
   }
 
-  /** Authenticate remote sockets in the first frame and start sampling. Usage: WebSocket open event. */
+  /** Authenticate paired sockets in the first frame or activate local sampling. Usage: WebSocket open event. */
   async handleOpen() {
-    if (this.config.auth === "supabase") {
-      const token = await this.tokenProvider();
-      if (!token) {
-        this.socket?.close(4001, "authentication required");
-        return;
-      }
-      this.sendFrame({ type: "auth", machine_id: this.config.machineId, access_token: token });
+    if (this.config.auth === "pairing") {
+      this.sendFrame({ type: "participant.authenticate", ticket: this.admission.ticket });
+      this.admission = null;
+      return;
     }
     this.setStatus("connected");
     this.startSampler();
@@ -127,6 +138,11 @@ export class SigmundClient {
     if (message.type === "relay.error") {
       this.emit({ type: "client.error", error: message.error || "Relay rejected the request" });
     }
+    if (message.type === "authentication.accepted" && message.role === "controller") {
+      this.setStatus("connected");
+      this.startSampler();
+      this.logEvent("client_ready", { mode: this.config.mode });
+    }
     if (message.type === "lease") {
       this.updateHeartbeat(message.payload?.active ?? message.active ?? message.lease ?? null);
     }
@@ -136,6 +152,7 @@ export class SigmundClient {
   /** Clear motion intent and schedule a fresh connection. Usage: WebSocket close event. */
   handleClose() {
     this.socket = null;
+    this.admission = null;
     this.stopSampler();
     this.stopHeartbeat();
     this.values.clear();
@@ -289,7 +306,7 @@ export class SigmundClient {
   logEvent(event, details = {}) {
     if (this.config.mode !== "local" || !this.isOpen()) return;
     this.sendFrame({
-      type: "pbm.client_event",
+      type: "mobile.client_event",
       machine_id: this.config.machineId,
       event,
       details,

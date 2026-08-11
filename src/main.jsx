@@ -1,5 +1,5 @@
 /**
- * Descriptor: React entry point for the Sigmund PBM application.
+ * Descriptor: React entry point for the Soul Ink Mobile application.
  * Usage: Vite loads this module from index.html in development and production.
  */
 import React from "react";

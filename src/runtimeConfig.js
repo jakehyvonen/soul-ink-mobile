@@ -1,6 +1,6 @@
 /**
- * Descriptor: Validates the unbundled deployment settings used by PBM.
- * Usage: App loads runtime-config.json before creating authentication or transport.
+ * Descriptor: validates the unbundled deployment settings used by Soul Ink Mobile.
+ * Usage: App loads runtime-config.json before creating pairing or transport services.
  */
 
 export const DEFAULT_RUNTIME_CONFIG = Object.freeze({
@@ -8,8 +8,6 @@ export const DEFAULT_RUNTIME_CONFIG = Object.freeze({
   controlUrl: "",
   machineId: "sigmund-local",
   auth: "none",
-  supabaseUrl: "",
-  supabasePublishableKey: "",
 });
 
 /**
@@ -21,25 +19,26 @@ export function validateRuntimeConfig(candidate = {}) {
   if (!new Set(["local", "remote"]).has(config.mode)) {
     throw new Error("runtime mode must be local or remote");
   }
-  if (!new Set(["none", "supabase"]).has(config.auth)) {
-    throw new Error("runtime auth must be none or supabase");
+  if (!new Set(["none", "pairing"]).has(config.auth)) {
+    throw new Error("runtime auth must be none or pairing");
   }
-  if (!String(config.machineId || "").trim()) {
-    throw new Error("runtime machineId is required");
+  if (config.mode === "local" && !String(config.machineId || "").trim()) {
+    throw new Error("local runtime machineId is required");
   }
-  if (config.mode === "remote" && !String(config.controlUrl || "").startsWith("wss://")) {
+  if (config.controlUrl && config.mode === "remote" && !String(config.controlUrl).startsWith("wss://")) {
     throw new Error("remote controlUrl must use wss://");
   }
-  if (config.auth === "supabase" && (!config.supabaseUrl || !config.supabasePublishableKey)) {
-    throw new Error("Supabase URL and publishable key are required for Supabase auth");
+  if (config.mode === "remote" && config.auth !== "pairing") {
+    throw new Error("remote mode requires Studio pairing");
+  }
+  if (config.mode === "local" && config.auth !== "none") {
+    throw new Error("local mode must remain unauthenticated");
   }
   return Object.freeze({
     mode: config.mode,
     controlUrl: String(config.controlUrl || ""),
     machineId: String(config.machineId),
     auth: config.auth,
-    supabaseUrl: String(config.supabaseUrl || ""),
-    supabasePublishableKey: String(config.supabasePublishableKey || ""),
   });
 }
 

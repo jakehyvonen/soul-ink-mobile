@@ -1,13 +1,14 @@
 /**
- * Descriptor: Safe mobile painting workflow composed around authoritative Sigmund events.
- * Usage: main.jsx renders App; runtime-config.json selects local or authenticated remote transport.
+ * Descriptor: safe mobile painting workflow composed around authoritative Sigmund events.
+ * Usage: main.jsx renders App; runtime-config.json selects local or Studio-paired transport.
  */
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { FullScreen, useFullScreenHandle } from "react-full-screen";
-import { PbmAuth } from "./auth.js";
 import { canOperate, initialPbmState, operationLabel, pbmReducer } from "./controlState.js";
+import { mobileCopy, mobileLocale } from "./content.js";
 import { loadRuntimeConfig } from "./runtimeConfig.js";
 import { SigmundClient } from "./sigmundClient.js";
+import { StudioPairing } from "./studioPairing.js";
 import { useSafetyStops } from "./useSafetyStops.js";
 import { routeXyVector } from "./xyControl.js";
 import HoldControlButton from "./components/HoldControlButton.jsx";
@@ -41,15 +42,16 @@ function TaskButton({ state, operation, label, onClick, disabled = false, tone =
   );
 }
 
-/** Bootstrap configuration, auth, transport, and all PBM workflows. Usage: application root. */
+/** Bootstrap configuration, pairing, transport, and all mobile workflows. Usage: application root. */
 export default function App() {
   const [state, dispatch] = useReducer(pbmReducer, initialPbmState);
   const [config, setConfig] = useState(null);
   const [client, setClient] = useState(null);
-  const [auth, setAuth] = useState(null);
-  const [authSession, setAuthSession] = useState(null);
+  const [pairing, setPairing] = useState(null);
   const [orientationEnabled, setOrientationEnabled] = useState(false);
   const [tiltActive, setTiltActive] = useState(false);
+  const locale = mobileLocale();
+  const copy = mobileCopy[locale];
   const orientationRef = useRef({ u_ratio: 0, v_ratio: 0 });
   const fullscreen = useFullScreenHandle();
   const operatorReady = canOperate(state);
@@ -60,21 +62,23 @@ export default function App() {
     loadRuntimeConfig()
       .then(async (loaded) => {
         if (!live) return;
-        setConfig(loaded);
-        if (loaded.auth === "supabase") {
-          const service = new PbmAuth(loaded);
-          setAuth(service);
-          setAuthSession(await service.getSession());
+        let effectiveConfig = loaded;
+        if (loaded.auth === "pairing") {
+          const service = new StudioPairing();
+          const pairedSession = await service.prepare();
+          effectiveConfig = Object.freeze({ ...loaded, machineId: pairedSession.machineId });
+          if (live) setPairing(service);
         }
+        if (live) setConfig(effectiveConfig);
       })
       .catch((error) => dispatch({ type: "client.error", error: error.message }));
     return () => { live = false; };
   }, []);
 
   useEffect(() => {
-    if (!config || (config.auth === "supabase" && !authSession)) return undefined;
+    if (!config || (config.auth === "pairing" && !pairing)) return undefined;
     const nextClient = new SigmundClient(config, {
-      tokenProvider: auth ? () => auth.getAccessToken() : undefined,
+      admissionProvider: pairing ? () => pairing.getAdmission() : undefined,
     });
     const unsubscribe = nextClient.subscribe((event) => {
       if (event.type === "client.safety_stop") setTiltActive(false);
@@ -87,7 +91,7 @@ export default function App() {
       nextClient.disconnect();
       setClient(null);
     };
-  }, [auth, authSession, config]);
+  }, [config, pairing]);
 
   useEffect(() => {
     if (!orientationEnabled) return undefined;
@@ -193,16 +197,7 @@ export default function App() {
   ], [state.profile]);
   const persistence = state.profile?.workflow_capabilities?.pbm?.persistence;
 
-  if (!config) return <main className="boot-screen"><h1>Sigmund PBM</h1><p>{state.notice}</p></main>;
-  if (config.auth === "supabase" && !authSession) {
-    return (
-      <main className="boot-screen">
-        <h1>Sigmund PBM</h1>
-        <p>Sign in to request access to {config.machineId}.</p>
-        <button type="button" onClick={() => auth?.signInWithGoogle()}>Continue with Google</button>
-      </main>
-    );
-  }
+  if (!config) return <main className="boot-screen"><h1>{copy.title}</h1><p>{state.notice}</p></main>;
 
   return (
     <FullScreen handle={fullscreen}>
@@ -210,10 +205,11 @@ export default function App() {
         <header>
           <div>
             <p className="eyebrow">{config.mode} · {config.machineId}</p>
-            <h1>Sigmund PBM</h1>
+            <h1>{copy.title}</h1>
           </div>
+          {config.mode === "remote" && <a className="language-switch" href={locale === "de" ? "/mobile/" : "/de/mobile/"}>{copy.language}</a>}
           <button type="button" className="stop-all" disabled={state.connection !== "connected"} onClick={() => client.stopAll().catch((error) => dispatch({ type: "client.error", error: error.message }))}>
-            STOP ALL
+            {copy.stopAll}
           </button>
         </header>
 
@@ -228,27 +224,27 @@ export default function App() {
         )}
         {state.profile?.workflow_capabilities?.pbm?.memory_mode && (
           <p className="hardware-test-banner" role="alert">
-            LOCAL HARDWARE TEST: motion is enabled. Painting data is held in memory and will not be saved.
+            {copy.localHardware}
           </p>
         )}
         <p className="notice" role="status">{state.notice}</p>
         {state.profile?.pbm_log?.path && (
           <details className="diagnostics">
-            <summary>Diagnostics</summary>
+            <summary>{copy.diagnostics}</summary>
             <code>PBM log: {state.profile.pbm_log.path}</code>
           </details>
         )}
 
         <section className="workflow-card" aria-label="Painting session">
-          <div className="section-heading"><h2>Painting session</h2><span>{operatorReady ? "controls live" : "read-only"}</span></div>
+          <div className="section-heading"><h2>{copy.paintingSession}</h2><span>{operatorReady ? copy.controlsLive : copy.readOnly}</span></div>
           <div className="button-row">
-            <TaskButton state={state} operation="painting_session_start" label="Begin Painting" tone="good" onClick={beginPainting} disabled={state.session.active || state.connection !== "connected"} />
-            <TaskButton state={state} operation="machine_clear_stop" label="Clear Stop" tone="warn" onClick={clearMachineStop} disabled={!state.lease.owned} />
-            <TaskButton state={state} operation="painting_session_end" label="End Painting" tone="warn" onClick={endPainting} disabled={!state.session.active} />
+            <TaskButton state={state} operation="painting_session_start" label={copy.beginPainting} tone="good" onClick={beginPainting} disabled={state.session.active || state.connection !== "connected"} />
+            <TaskButton state={state} operation="machine_clear_stop" label={copy.clearStop} tone="warn" onClick={clearMachineStop} disabled={!state.lease.owned} />
+            <TaskButton state={state} operation="painting_session_end" label={copy.endPainting} tone="warn" onClick={endPainting} disabled={!state.session.active} />
             <TaskButton
               state={state}
               operation={state.recording.active ? "motif_recording_stop" : "motif_recording_start"}
-              label={state.recording.active ? "Stop Motif" : "Record Motif"}
+              label={state.recording.active ? copy.stopMotif : copy.recordMotif}
               tone="record"
               onClick={() => runOperation(state.recording.active ? "motif_recording_stop" : "motif_recording_start", state.recording.active ? "motif_recording_stop" : "motif_recording_start").catch(() => undefined)}
               disabled={!operatorReady}
@@ -258,33 +254,33 @@ export default function App() {
 
         <div className="control-layout">
           <section className="joystick-card" aria-label="XY control">
-            <div className="section-heading"><h2>XY joystick</h2><span>53 ms latest value</span></div>
+            <div className="section-heading"><h2>{copy.xyJoystick}</h2><span>53 ms</span></div>
             <PhaserGame onVector={updateXy} disabled={!operatorReady} />
           </section>
 
           <section className="controls-card" aria-label="Continuous controls">
-            <div className="section-heading"><h2>Paint and table</h2><span>release always stops</span></div>
+            <div className="section-heading"><h2>{copy.paintTable}</h2><span>{copy.releaseStops}</span></div>
             <div className="hold-grid">
-              <HoldControlButton disabled={!operatorReady} onStart={() => client.setControl("paint_pump", { velocity_ratio: 1 })} onStop={() => client.clearControl("paint_pump")} tone="pump">Hold Dispense</HoldControlButton>
-              <button type="button" className="control-button stop" disabled={!operatorReady} onClick={() => client.stopControl("paint_pump")}>Stop Pump</button>
-              <HoldControlButton disabled={!operatorReady} onStart={() => client.setControl("table_rotation", { velocity_ratio: -1 })} onStop={() => client.clearControl("table_rotation")}>Hold CCW</HoldControlButton>
-              <button type="button" className="control-button stop" disabled={!operatorReady} onClick={() => client.stopControl("table_rotation")}>Stop Rotation</button>
-              <HoldControlButton disabled={!operatorReady} onStart={() => client.setControl("table_rotation", { velocity_ratio: 1 })} onStop={() => client.clearControl("table_rotation")}>Hold CW</HoldControlButton>
-              <button type="button" className={`control-button ${tiltActive ? "record" : "accent"}`} disabled={!operatorReady || !orientationEnabled} onClick={toggleTilt}>{tiltActive ? "Stop Tilt" : "Use Phone Tilt"}</button>
-              <TaskButton state={state} operation="table_level" label="Level" onClick={() => { setTiltActive(false); runOperation("table_level", "control.level").catch(() => undefined); }} disabled={!operatorReady} />
-              <button type="button" className="control-button neutral" onClick={enableOrientation}>{orientationEnabled ? "Tilt Enabled" : "Enable Phone Tilt"}</button>
+              <HoldControlButton disabled={!operatorReady} onStart={() => client.setControl("paint_pump", { velocity_ratio: 1 })} onStop={() => client.clearControl("paint_pump")} tone="pump">{copy.holdDispense}</HoldControlButton>
+              <button type="button" className="control-button stop" disabled={!operatorReady} onClick={() => client.stopControl("paint_pump")}>{copy.stopPump}</button>
+              <HoldControlButton disabled={!operatorReady} onStart={() => client.setControl("table_rotation", { velocity_ratio: -1 })} onStop={() => client.clearControl("table_rotation")}>{copy.holdCcw}</HoldControlButton>
+              <button type="button" className="control-button stop" disabled={!operatorReady} onClick={() => client.stopControl("table_rotation")}>{copy.stopRotation}</button>
+              <HoldControlButton disabled={!operatorReady} onStart={() => client.setControl("table_rotation", { velocity_ratio: 1 })} onStop={() => client.clearControl("table_rotation")}>{copy.holdCw}</HoldControlButton>
+              <button type="button" className={`control-button ${tiltActive ? "record" : "accent"}`} disabled={!operatorReady || !orientationEnabled} onClick={toggleTilt}>{tiltActive ? copy.stopTilt : copy.usePhoneTilt}</button>
+              <TaskButton state={state} operation="table_level" label={copy.level} onClick={() => { setTiltActive(false); runOperation("table_level", "control.level").catch(() => undefined); }} disabled={!operatorReady} />
+              <button type="button" className="control-button neutral" onClick={enableOrientation}>{orientationEnabled ? copy.tiltEnabled : copy.enablePhoneTilt}</button>
             </div>
           </section>
         </div>
 
         <section className="workflow-card" aria-label="Syringes and replay">
-          <div className="section-heading"><h2>Syringes and replay</h2><span>waits for confirmation</span></div>
+          <div className="section-heading"><h2>{copy.syringesReplay}</h2><span>{copy.waitsConfirmation}</span></div>
           <div className="task-grid">
             {syringes.map((syringe) => (
               <TaskButton key={syringe.id} state={state} operation={`syringe_${syringe.id}`} label={syringe.label || `Syringe ${syringe.id}`} onClick={() => runOperation(`syringe_${syringe.id}`, "syringe.select", { syringe_id: syringe.id }).catch(() => undefined)} disabled={!operatorReady} />
             ))}
             {(["gesture", "motif", "run"]).map((target) => (
-              <TaskButton key={target} state={state} operation={`replay_${target}`} label={`Replay ${target}`} tone="replay" onClick={() => runOperation(`replay_${target}`, "replay", { target }).catch(() => undefined)} disabled={!operatorReady || !state.replay.available[target]} />
+              <TaskButton key={target} state={state} operation={`replay_${target}`} label={`${copy.replay} ${target}`} tone="replay" onClick={() => runOperation(`replay_${target}`, "replay", { target }).catch(() => undefined)} disabled={!operatorReady || !state.replay.available[target]} />
             ))}
           </div>
         </section>

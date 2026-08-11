@@ -14,7 +14,7 @@ export const initialPbmState = Object.freeze({
   recording: { active: false, status: "idle" },
   replay: { busy: false, available: { gesture: false, motif: false, run: false } },
   operations: {},
-  notice: "Opening PBM never starts motion.",
+  notice: "Opening Soul Ink Mobile never starts motion.",
 });
 
 /** Extract application workflow state from one machine snapshot. Usage: state event reducer. */

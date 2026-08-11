@@ -1,5 +1,5 @@
 /**
- * Descriptor: Browser lifecycle safety exits for all PBM continuous controls.
+ * Descriptor: browser lifecycle safety exits for all Soul Ink Mobile continuous controls.
  * Usage: App invokes useSafetyStops(client) once for its active transport.
  */
 import { useEffect } from "react";
