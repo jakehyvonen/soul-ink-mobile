@@ -61,7 +61,7 @@ async function readResponse(response) {
 /** Own one public session ID and memory-only admissions backed by an HttpOnly cookie. */
 export class StudioPairing {
   constructor(options = {}) {
-    this.fetchImpl = options.fetchImpl || globalThis.fetch;
+    this.fetchImpl = options.fetchImpl || globalThis.fetch.bind(globalThis);
     this.locationValue = options.locationValue || globalThis.location;
     this.historyValue = options.historyValue || globalThis.history;
     this.storage = options.storage || globalThis.sessionStorage;

@@ -62,6 +62,25 @@ describe("StudioPairing", () => {
     expect(storage.setItem).not.toHaveBeenCalledWith(expect.anything(), pairingToken);
   });
 
+  it("keeps the browser receiver for default claim requests", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(function () {
+      expect(this).toBe(globalThis);
+      return Promise.resolve({ ok: true, json: async () => claimResponse() });
+    });
+    const service = new StudioPairing({
+      historyValue: { replaceState: vi.fn() },
+      locationValue: { hash: `#pair=${pairingToken}`, pathname: "/mobile/", search: "" },
+      storage: { getItem: vi.fn(), removeItem: vi.fn(), setItem: vi.fn() },
+    });
+
+    try {
+      await service.prepare();
+      expect(fetchSpy).toHaveBeenCalledOnce();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
   it("uses only the HttpOnly-cookie ticket route after reload", async () => {
     const fetchImpl = vi.fn(async () => ({ ok: true, json: async () => claimResponse() }));
     const storage = {

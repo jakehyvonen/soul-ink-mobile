@@ -46,7 +46,7 @@ export function validateRuntimeConfig(candidate = {}) {
  * Fetch the deployment configuration with cache bypass so endpoint changes are immediate.
  * Usage: call once during application bootstrap; pass a test fetch implementation when needed.
  */
-export async function loadRuntimeConfig(fetchImpl = globalThis.fetch) {
+export async function loadRuntimeConfig(fetchImpl = globalThis.fetch.bind(globalThis)) {
   const response = await fetchImpl(new URL("./runtime-config.json", document.baseURI), { cache: "no-store" });
   if (!response.ok) {
     throw new Error(`runtime configuration failed with HTTP ${response.status}`);
