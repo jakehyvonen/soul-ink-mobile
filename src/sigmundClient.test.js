@@ -129,7 +129,7 @@ describe("SigmundClient", () => {
     client.disconnect();
   });
 
-  it("heartbeats a gateway-nested remote operator lease", async () => {
+  it("leaves remote lease renewal to the authorized Studio host session", async () => {
     const client = createPairedClient();
     const events = [];
     client.subscribe((event) => events.push(event));
@@ -157,22 +157,8 @@ describe("SigmundClient", () => {
     });
     expect(events.at(-1)).toMatchObject({ type: "lease", owned_by_client: true });
 
-    await vi.advanceTimersByTimeAsync(2053);
-
-    const heartbeat = socket.sent.find((frame) => frame.type === "lease.heartbeat");
-    expect(heartbeat).toBeDefined();
-    socket.receive({
-      correlation_id: heartbeat.request_id,
-      payload: {
-        kind: "lease.heartbeat",
-        ok: true,
-        result: { lease: { holder: "remote:session-127:user-131", mode: "operator" }, ok: true },
-      },
-      state: "accepted",
-      type: "command.lifecycle",
-    });
-    await vi.advanceTimersByTimeAsync(2053);
-    expect(socket.sent.filter((frame) => frame.type === "lease.heartbeat")).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(5_003);
+    expect(socket.sent.filter((frame) => frame.type === "lease.heartbeat")).toHaveLength(0);
     client.disconnect();
   });
 

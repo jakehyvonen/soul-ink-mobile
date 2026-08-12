@@ -328,7 +328,7 @@ export class SigmundClient {
     this.sampleTimer = null;
   }
 
-  /** Renew only a currently owned lease, stop on loss, and report ownership to the reducer. Usage: lease event handling. */
+  /** Track authoritative ownership and renew only Pi-local leases in this browser. Usage: lease event handling. */
   updateHeartbeat(activeLease) {
     const ownsLease = Boolean(this.authoritativeHolder && activeLease?.holder === this.authoritativeHolder);
     const lostOwnedLease = this.ownsLease && !ownsLease;
@@ -338,7 +338,7 @@ export class SigmundClient {
       if (lostOwnedLease) this.stopContinuous("lease loss");
       return false;
     }
-    if (!this.heartbeatTimer) {
+    if (this.config.mode === "local" && !this.heartbeatTimer) {
       this.heartbeatTimer = setInterval(() => {
         void this.renewLease();
       }, RECONNECT_DELAY_MS);
