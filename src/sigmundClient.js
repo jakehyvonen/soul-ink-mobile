@@ -144,7 +144,9 @@ export class SigmundClient {
       this.logEvent("client_ready", { mode: this.config.mode });
     }
     if (message.type === "lease") {
-      this.updateHeartbeat(message.payload?.active ?? message.active ?? message.lease ?? null);
+      this.updateHeartbeat(
+        message.payload?.active ?? message.payload?.lease ?? message.active ?? message.lease ?? null,
+      );
     }
     this.emit(message);
   }

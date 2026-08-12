@@ -71,7 +71,7 @@ export function pbmReducer(state, event) {
       };
     }
     case "lease": {
-      const active = event.payload?.active ?? event.active ?? event.lease ?? null;
+      const active = event.payload?.active ?? event.payload?.lease ?? event.active ?? event.lease ?? null;
       return {
         ...state,
         lease: {

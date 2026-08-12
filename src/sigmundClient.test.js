@@ -94,6 +94,29 @@ describe("SigmundClient", () => {
     client.disconnect();
   });
 
+  it("heartbeats a gateway-nested remote operator lease", async () => {
+    const client = createPairedClient();
+    await client.connect();
+    const socket = FakeWebSocket.instances[0];
+    socket.open();
+    socket.receive({ type: "authentication.accepted", role: "controller" });
+    socket.receive({
+      type: "lease",
+      payload: { lease: { holder: "mobile-127", mode: "operator" } },
+    });
+
+    await vi.advanceTimersByTimeAsync(2053);
+
+    const heartbeat = socket.sent.find((frame) => frame.type === "lease.heartbeat");
+    expect(heartbeat).toBeDefined();
+    socket.receive({
+      type: "request.result",
+      request_id: heartbeat.request_id,
+      payload: { ok: true },
+    });
+    client.disconnect();
+  });
+
   it("correlates accepted discrete requests", async () => {
     const client = createClient();
     await client.connect();

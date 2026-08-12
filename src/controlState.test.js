@@ -19,6 +19,20 @@ describe("PBM authoritative control state", () => {
     expect(canOperate(state)).toBe(true);
   });
 
+  it("recognizes the gateway's nested remote lease payload", () => {
+    const state = pbmReducer(initialPbmState, {
+      type: "lease",
+      localHolder: "mobile-127",
+      payload: { lease: { holder: "mobile-127", mode: "operator" } },
+    });
+
+    expect(state.lease).toEqual({
+      active: { holder: "mobile-127", mode: "operator" },
+      owned: true,
+      mode: "operator",
+    });
+  });
+
   it("does not treat an accepted syringe request as confirmed", () => {
     let state = pbmReducer(initialPbmState, { type: "operation.requested", name: "syringe_2", requestId: "pbm-113" });
     state = pbmReducer(state, { type: "operation.accepted", name: "syringe_2", requestId: "pbm-113" });
