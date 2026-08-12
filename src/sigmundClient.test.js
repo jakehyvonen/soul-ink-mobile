@@ -79,6 +79,36 @@ describe("SigmundClient", () => {
     client.disconnect();
   });
 
+  it("reports the first XY send and Pi acknowledgement without pulsing every sample", async () => {
+    const client = createClient();
+    const events = [];
+    client.subscribe((event) => events.push(event));
+    await client.connect();
+    const socket = FakeWebSocket.instances[0];
+    socket.open();
+    client.setControl("xy_joystick", { x_ratio: 0.5, y_ratio: -0.25 });
+    await vi.advanceTimersByTimeAsync(CONTROL_SAMPLE_MS);
+    const frame = socket.sent.at(-1);
+
+    expect(events.filter((event) => event.type === "client.control_delivery")).toEqual([
+      expect.objectContaining({ channel: "xy_joystick", state: "sending" }),
+    ]);
+
+    socket.receive({
+      correlation_id: frame.request_id,
+      payload: { kind: "control.update", ok: true, result: { accepted: true, ok: true } },
+      state: "accepted",
+      type: "command.lifecycle",
+    });
+    await vi.advanceTimersByTimeAsync(CONTROL_SAMPLE_MS * 2);
+
+    expect(events.filter((event) => event.type === "client.control_delivery")).toEqual([
+      expect.objectContaining({ channel: "xy_joystick", state: "sending" }),
+      expect.objectContaining({ channel: "xy_joystick", state: "confirmed" }),
+    ]);
+    client.disconnect();
+  });
+
   it("authenticates a paired controller before reporting connected", async () => {
     const client = createPairedClient();
     const events = [];

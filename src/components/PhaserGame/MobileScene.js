@@ -4,12 +4,7 @@
  */
 import Phaser from "phaser";
 import VirtualJoystickPlugin from "phaser3-rex-plugins/plugins/virtualjoystick-plugin.js";
-
-/** Clamp and shape one joystick axis for fine center control. Usage: joystick update. */
-export function shapeAxis(value) {
-  const clamped = Math.max(-1, Math.min(1, Number(value) || 0));
-  return Math.sign(clamped) * Math.abs(clamped) ** 1.7;
-}
+import { joystickVector } from "./joystickVector.js";
 
 /**
  * Render one landscape-friendly joystick and publish latest XY intent.
@@ -39,20 +34,20 @@ export default class MobileScene extends Phaser.Scene {
       base: this.add.image(0, 0, "base").setDisplaySize(367, 367),
       thumb: this.add.image(0, 0, "thumb").setDisplaySize(107, 107),
     });
-    this.joystick.on("update", this.publishVector, this);
     this.input.on("pointerup", this.publishNeutral, this);
     this.input.on("pointerupoutside", this.publishNeutral, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.publishNeutral, this);
   }
 
+  /** Poll joystick intent every rendered frame, independent of plugin update events. Usage: Phaser update lifecycle. */
+  update() {
+    this.publishVector();
+  }
+
   /** Publish shaped gantry-view ratios. Usage: joystick update callback. */
   publishVector() {
     if (!this.joystick) return;
-    const radius = this.joystick.radius || 1;
-    this.onVector({
-      x_ratio: -shapeAxis(this.joystick.forceX / radius),
-      y_ratio: -shapeAxis(this.joystick.forceY / radius),
-    });
+    this.onVector(joystickVector(this.joystick));
   }
 
   /** Publish explicit neutral XY intent. Usage: release, cancel, and scene shutdown. */

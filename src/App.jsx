@@ -50,6 +50,7 @@ export default function App() {
   const [pairing, setPairing] = useState(null);
   const [orientationEnabled, setOrientationEnabled] = useState(false);
   const [tiltActive, setTiltActive] = useState(false);
+  const [xyDelivery, setXyDelivery] = useState("idle");
   const locale = mobileLocale();
   const copy = mobileCopy[locale];
   const orientationRef = useRef({ u_ratio: 0, v_ratio: 0 });
@@ -82,6 +83,9 @@ export default function App() {
     });
     const unsubscribe = nextClient.subscribe((event) => {
       if (event.type === "client.safety_stop") setTiltActive(false);
+      if (event.type === "client.control_delivery" && event.channel === "xy_joystick") {
+        setXyDelivery(event.state);
+      }
       dispatch({ ...event, localHolder: nextClient.holder });
     });
     setClient(nextClient);
@@ -215,6 +219,7 @@ export default function App() {
         : !state.session.active
           ? copy.controlNeedsSession
           : copy.controlLive;
+  const xyDeliveryLabel = copy.xyDelivery[operatorReady ? xyDelivery : "idle"] || copy.xyDelivery.idle;
 
   if (!config) return <main className="boot-screen"><h1>{copy.title}</h1><p>{state.notice}</p></main>;
 
@@ -275,7 +280,7 @@ export default function App() {
 
         <div className="control-layout">
           <section className="joystick-card" aria-label="XY control">
-            <div className="section-heading"><h2>{copy.xyJoystick}</h2><span>53 ms</span></div>
+            <div className="section-heading"><h2>{copy.xyJoystick}</h2><span>{xyDeliveryLabel}</span></div>
             <PhaserGame onVector={updateXy} disabled={!operatorReady} />
           </section>
 

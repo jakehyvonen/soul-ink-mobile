@@ -53,6 +53,8 @@ export class SigmundClient {
     this.socket = null;
     this.listeners = new Set();
     this.pending = new Map();
+    this.controlMessages = new Map();
+    this.controlStates = new Map();
     this.values = new Map();
     this.sequences = new Map();
     this.requestSequence = 0;
@@ -135,12 +137,14 @@ export class SigmundClient {
     }
     if (message.type === "command.lifecycle" && message.correlation_id) {
       const outcome = message.payload || {};
+      this.settleControl(message.correlation_id, outcome);
       this.settlePending(message.correlation_id, outcome.ok
         ? { ...(outcome.result || {}), ok: true }
         : { error: outcome.error || outcome.result?.error || outcome.result?.reason, ok: false });
     }
     if (message.type === "gateway.error" || message.type === "relay.error") {
       const error = message.error || "Relay rejected the request";
+      this.settleControl(message.correlation_id, { error, ok: false });
       this.settlePending(message.correlation_id, { error, ok: false });
       this.emit({ type: "client.error", error });
     }
@@ -165,6 +169,8 @@ export class SigmundClient {
     this.stopHeartbeat();
     this.authoritativeHolder = this.config.mode === "local" ? this.holder : null;
     this.values.clear();
+    this.controlMessages.clear();
+    this.controlStates.clear();
     this.rejectPending("Connection closed");
     this.setStatus("disconnected");
     this.emit({ type: "client.safety_stop", reason: "socket loss" });
@@ -234,6 +240,34 @@ export class SigmundClient {
     if (payload.painting) this.emit({ type: "painting.state", payload: payload.painting });
     pending.resolve({ ...payload, request_id: requestId });
     return true;
+  }
+
+  /** Resolve one transient control acknowledgement into a stable operator-facing state. Usage: command lifecycle handling. */
+  settleControl(requestId, payload = {}) {
+    const pending = this.controlMessages.get(requestId);
+    if (!pending) return false;
+    this.controlMessages.delete(requestId);
+    const result = payload.result || {};
+    const accepted = Boolean(payload.ok && result.ok !== false && result.accepted !== false);
+    if (accepted) {
+      this.notifyControlState(pending.channel, pending.active ? "confirmed" : "idle");
+    } else {
+      this.notifyControlState(
+        pending.channel,
+        "failed",
+        payload.error || result.error || result.reason || "Sigmund rejected the control update.",
+      );
+    }
+    return true;
+  }
+
+  /** Emit only meaningful control-delivery transitions, not every 53 ms frame. Usage: send and acknowledgement paths. */
+  notifyControlState(channel, state, error = null) {
+    const previous = this.controlStates.get(channel);
+    if (previous?.state === state && previous?.error === error) return;
+    const next = { error, state };
+    this.controlStates.set(channel, next);
+    this.emit({ type: "client.control_delivery", channel, ...next });
   }
 
   /** Store the latest normalized control value for 53 ms sampling. Usage: joystick, tilt, pump, rotation. */
@@ -334,9 +368,21 @@ export class SigmundClient {
     const sequence = (this.sequences.get(channel) || 0) + 1;
     this.sequences.set(channel, sequence);
     const sentAt = Date.now();
+    const requestId = `${this.holder}-${channel}-${sequence}`;
+    const active = Object.values(values).some((value) => Number(value) !== 0);
+    this.controlMessages.set(requestId, { active, channel });
+    while (this.controlMessages.size > 127) {
+      this.controlMessages.delete(this.controlMessages.keys().next().value);
+    }
+    const delivery = this.controlStates.get(channel)?.state;
+    if (active && !new Set(["sending", "confirmed"]).has(delivery)) {
+      this.notifyControlState(channel, "sending");
+    } else if (!active && !new Set(["stopping", "idle"]).has(delivery)) {
+      this.notifyControlState(channel, "stopping");
+    }
     this.sendFrame({
       type: "control.update",
-      request_id: `${this.holder}-${channel}-${sequence}`,
+      request_id: requestId,
       machine_id: this.config.machineId,
       channel,
       sequence,

@@ -3,6 +3,10 @@
  * Usage: App selects a catalog from the localized Studio path; German requires owner review before publication.
  */
 
+const xyDeliveryCopy = Object.freeze({
+  confirmed: "motion confirmed", failed: "control rejected", idle: "ready", sending: "sending motion", stopping: "stopping",
+});
+
 export const mobileCopy = Object.freeze({
   en: Object.freeze({
     beginPainting: "Begin Painting", clearStop: "Clear Stop", controlsLive: "controls live",
@@ -20,6 +24,7 @@ export const mobileCopy = Object.freeze({
     stopAll: "STOP ALL", stopMotif: "Stop Motif", stopPump: "Stop Pump", stopRotation: "Stop Rotation",
     stopTilt: "Stop Tilt", syringesReplay: "Syringes and replay", tiltEnabled: "Tilt Enabled",
     title: "Soul Ink Mobile", usePhoneTilt: "Use Phone Tilt", waitsConfirmation: "waits for confirmation", xyJoystick: "XY joystick",
+    xyDelivery: xyDeliveryCopy,
   }),
   de: Object.freeze({
     beginPainting: "Malen beginnen", clearStop: "Stopp aufheben", controlsLive: "Steuerung aktiv",
@@ -37,6 +42,7 @@ export const mobileCopy = Object.freeze({
     stopAll: "ALLES STOPPEN", stopMotif: "Motiv stoppen", stopPump: "Pumpe stoppen", stopRotation: "Drehung stoppen",
     stopTilt: "Neigung stoppen", syringesReplay: "Spritzen und Wiedergabe", tiltEnabled: "Neigung aktiviert",
     title: "Soul Ink Mobile", usePhoneTilt: "Handy-Neigung verwenden", waitsConfirmation: "wartet auf Bestätigung", xyJoystick: "XY-Joystick",
+    xyDelivery: xyDeliveryCopy,
   }),
 });
 
