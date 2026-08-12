@@ -392,7 +392,7 @@ export class SigmundClient {
       channel,
       sequence,
       sent_at: new Date(sentAt).toISOString(),
-      expires_at: new Date(sentAt + 503).toISOString(),
+      expires_at: new Date(sentAt + 2_053).toISOString(),
       payload: values,
     });
   }

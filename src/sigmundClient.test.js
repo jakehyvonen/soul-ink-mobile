@@ -78,7 +78,7 @@ describe("SigmundClient", () => {
     client.setControl("xy_joystick", { x_ratio: 0.75, y_ratio: -0.25 });
     await vi.advanceTimersByTimeAsync(CONTROL_SAMPLE_MS);
     expect(socket.sent.at(-1)).toMatchObject({ channel: "xy_joystick", sequence: 2, payload: { x_ratio: 0.75, y_ratio: -0.25 } });
-    expect(Date.parse(socket.sent.at(-1).expires_at) - Date.parse(socket.sent.at(-1).sent_at)).toBe(503);
+    expect(Date.parse(socket.sent.at(-1).expires_at) - Date.parse(socket.sent.at(-1).sent_at)).toBe(2_053);
     await vi.advanceTimersByTimeAsync(CONTROL_SAMPLE_MS);
     expect(socket.sent.at(-1).sequence).toBe(3);
     client.disconnect();
