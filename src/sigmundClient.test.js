@@ -3,7 +3,7 @@
  * Usage: `npm test` runs these without a live Pi or real WebSocket.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { CONTROL_SAMPLE_MS, SigmundClient } from "./sigmundClient.js";
+import { CONTROL_SAMPLE_MS, INITIALIZE_WAIT_MS, SigmundClient } from "./sigmundClient.js";
 import { validateRuntimeConfig } from "./runtimeConfig.js";
 
 /** Minimal controllable WebSocket for transport tests. Usage: SigmundClient dependency injection. */
@@ -210,6 +210,33 @@ describe("SigmundClient", () => {
     });
 
     await expect(pending).rejects.toThrow("viewing device is not present");
+    client.disconnect();
+  });
+
+  it("keeps initialization pending while retaining a short admission lifetime", async () => {
+    const client = createPairedClient();
+    await client.connect();
+    const socket = FakeWebSocket.instances[0];
+    socket.open();
+    socket.receive({ type: "authentication.accepted", role: "controller" });
+    let settled = false;
+    const pending = client.sendRequest("machine.initialize");
+    pending.finally(() => { settled = true; });
+    const request = socket.sent.at(-1);
+
+    expect(Date.parse(request.expires_at) - Date.parse(request.sent_at)).toBe(5003);
+    await vi.advanceTimersByTimeAsync(5003);
+    expect(settled).toBe(false);
+
+    socket.receive({
+      correlation_id: request.request_id,
+      payload: { kind: "machine.initialize", ok: true, result: { initialized: true, ok: true } },
+      state: "accepted",
+      type: "command.lifecycle",
+    });
+    await pending;
+    expect(settled).toBe(true);
+    expect(INITIALIZE_WAIT_MS).toBe(113011);
     client.disconnect();
   });
 

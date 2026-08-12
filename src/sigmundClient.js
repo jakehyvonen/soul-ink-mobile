@@ -6,6 +6,7 @@ import { resolveControlUrl } from "./runtimeConfig.js";
 
 export const CONTROL_SAMPLE_MS = 53;
 export const REQUEST_EXPIRY_MS = 5003;
+export const INITIALIZE_WAIT_MS = 113011;
 export const RECONNECT_DELAY_MS = 2053;
 
 const ZERO_VALUES = Object.freeze({
@@ -192,7 +193,8 @@ export class SigmundClient {
   }
 
   /** Send one correlated discrete request with a finite deadline. Usage: lease, session, and task actions. */
-  sendRequest(type, fields = {}, timeoutMs = REQUEST_EXPIRY_MS) {
+  sendRequest(type, fields = {}, timeoutMs = null) {
+    const waitMs = timeoutMs ?? (type === "machine.initialize" ? INITIALIZE_WAIT_MS : REQUEST_EXPIRY_MS);
     const requestId = `${this.holder}-${++this.requestSequence}`;
     const request = new Promise((resolve, reject) => {
       if (!this.isOpen()) {
@@ -202,7 +204,7 @@ export class SigmundClient {
       const timeout = setTimeout(() => {
         this.pending.delete(requestId);
         reject(new Error(`${type} timed out`));
-      }, timeoutMs);
+      }, waitMs);
       this.pending.set(requestId, { resolve, reject, timeout, type });
       const sentAt = Date.now();
       this.sendFrame({
@@ -210,7 +212,7 @@ export class SigmundClient {
         request_id: requestId,
         machine_id: this.config.machineId,
         sent_at: new Date(sentAt).toISOString(),
-        expires_at: new Date(sentAt + Math.min(timeoutMs, REQUEST_EXPIRY_MS)).toISOString(),
+        expires_at: new Date(sentAt + Math.min(waitMs, REQUEST_EXPIRY_MS)).toISOString(),
         ...fields,
       });
     });
