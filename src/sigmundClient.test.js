@@ -63,19 +63,24 @@ describe("SigmundClient", () => {
   beforeEach(() => { vi.useFakeTimers(); FakeWebSocket.instances = []; });
   afterEach(() => vi.useRealTimers());
 
-  it("connects read-only and samples one latest value with increasing sequence", async () => {
+  it("sends first intent immediately, then samples the latest value with increasing sequence", async () => {
     const client = createClient();
     await client.connect();
     const socket = FakeWebSocket.instances[0];
     expect(socket.url).toContain("auto_lease=false");
     socket.open();
     client.setControl("xy_joystick", { x_ratio: 0.25, y_ratio: -0.5 });
+    expect(socket.sent.at(-1)).toMatchObject({
+      channel: "xy_joystick",
+      sequence: 1,
+      payload: { x_ratio: 0.25, y_ratio: -0.5 },
+    });
     client.setControl("xy_joystick", { x_ratio: 0.75, y_ratio: -0.25 });
     await vi.advanceTimersByTimeAsync(CONTROL_SAMPLE_MS);
-    expect(socket.sent.at(-1)).toMatchObject({ channel: "xy_joystick", sequence: 1, payload: { x_ratio: 0.75, y_ratio: -0.25 } });
+    expect(socket.sent.at(-1)).toMatchObject({ channel: "xy_joystick", sequence: 2, payload: { x_ratio: 0.75, y_ratio: -0.25 } });
     expect(Date.parse(socket.sent.at(-1).expires_at) - Date.parse(socket.sent.at(-1).sent_at)).toBe(503);
     await vi.advanceTimersByTimeAsync(CONTROL_SAMPLE_MS);
-    expect(socket.sent.at(-1).sequence).toBe(2);
+    expect(socket.sent.at(-1).sequence).toBe(3);
     client.disconnect();
   });
 
@@ -295,7 +300,9 @@ describe("SigmundClient", () => {
     client.setControl("table_rotation", { velocity_ratio: 1 });
     client.clearControl("table_rotation");
     client.clearControl("table_rotation");
-    const stops = socket.sent.filter((frame) => frame.channel === "table_rotation");
+    const stops = socket.sent.filter((frame) => (
+      frame.channel === "table_rotation" && frame.payload.velocity_ratio === 0
+    ));
     expect(stops).toHaveLength(1);
     expect(stops[0]).toMatchObject({ channel: "table_rotation", payload: { velocity_ratio: 0 } });
     client.disconnect();

@@ -272,9 +272,12 @@ export class SigmundClient {
     this.emit({ type: "client.control_delivery", channel, ...next });
   }
 
-  /** Store the latest normalized control value for 53 ms sampling. Usage: joystick, tilt, pump, rotation. */
+  /** Send first intent immediately, then retain its latest value for 53 ms sampling. Usage: joystick, tilt, pump, rotation. */
   setControl(channel, values) {
-    this.values.set(channel, normalizeControl(channel, values));
+    const firstActiveFrame = !this.values.has(channel);
+    const normalized = normalizeControl(channel, values);
+    this.values.set(channel, normalized);
+    if (firstActiveFrame) this.sendControlFrame(channel, normalized);
   }
 
   /** Send neutral once and stop sampling one tracked channel. Usage: pointer release and safety cleanup. */
