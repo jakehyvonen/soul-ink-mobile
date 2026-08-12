@@ -50,6 +50,16 @@ function machineFault(health) {
   };
 }
 
+/** Extract the most specific public-safe lifecycle rejection. Usage: failed command notices. */
+function commandFailure(event) {
+  return event.message
+    || event.payload?.message
+    || event.payload?.error
+    || event.payload?.result?.error
+    || event.payload?.result?.reason
+    || "Command failed";
+}
+
 /** Convert connection, lease, lifecycle, and state events into renderable truth. Usage: useReducer. */
 export function pbmReducer(state, event) {
   switch (event.type) {
@@ -128,6 +138,7 @@ export function pbmReducer(state, event) {
       const lifecycle = event.state || event.payload?.state;
       if (!operationName || !lifecycle) return state;
       const failed = ["failed", "faulted"].includes(lifecycle);
+      const failureMessage = failed ? commandFailure(event) : null;
       return {
         ...state,
         operations: {
@@ -135,10 +146,10 @@ export function pbmReducer(state, event) {
           [operationName]: {
             status: lifecycle === "completed" ? "confirmed" : lifecycle,
             requestId: commandId,
-            error: failed ? event.message || event.payload?.message || "Command failed" : null,
+            error: failureMessage,
           },
         },
-        notice: failed ? event.message || event.payload?.message || "Command failed" : state.notice,
+        notice: failureMessage || state.notice,
       };
     }
     default:

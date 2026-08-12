@@ -102,4 +102,14 @@ describe("PBM authoritative control state", () => {
 
     expect(state.notice).toBe(initialPbmState.notice);
   });
+
+  it("shows the gateway or Pi rejection instead of a generic command failure", () => {
+    const state = pbmReducer(initialPbmState, {
+      type: "command.lifecycle",
+      state: "failed",
+      payload: { error: "stale or out-of-order control sequence", kind: "control.update" },
+    });
+
+    expect(state.notice).toBe("stale or out-of-order control sequence");
+  });
 });
