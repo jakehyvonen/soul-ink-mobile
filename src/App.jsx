@@ -56,6 +56,7 @@ export default function App() {
   const locale = mobileLocale();
   const copy = mobileCopy[locale];
   const orientationRef = useRef({ u_ratio: 0, v_ratio: 0 });
+  const motionCheckRef = useRef(false);
   const fullscreen = useFullScreenHandle();
   const operatorReady = canOperate(state);
   const showMotionCheck = locale === "en" && motionCheckRequested();
@@ -207,18 +208,21 @@ export default function App() {
   /** Perform one supervised low-speed axis check through the normal XY channel. Usage: opt-in motion-check buttons. */
   async function jogForMotionCheck(vector) {
     if (!client || !operatorReady || motionCheckActive) return;
+    motionCheckRef.current = true;
     setMotionCheckActive(true);
     try {
       await runMotionCheck(client, vector);
     } catch (error) {
       dispatch({ type: "client.error", error: error.message });
     } finally {
+      motionCheckRef.current = false;
       setMotionCheckActive(false);
     }
   }
 
   /** Route latest XY ratios only while the session owns control. Usage: Phaser callback. */
   const updateXy = useCallback((vector) => {
+    if (motionCheckRef.current) return;
     routeXyVector(client, operatorReady, vector);
   }, [client, operatorReady]);
 
@@ -303,7 +307,7 @@ export default function App() {
 
         {showMotionCheck && (
           <section className="workflow-card motion-check-card" aria-label="Supervised small-motion check">
-            <div className="section-heading"><h2>Supervised motion check</h2><span>about 3 mm per press</span></div>
+            <div className="section-heading"><h2>Supervised motion check</h2><span>one small step per press</span></div>
             <p>Keep a hand at physical Stop All. Each press uses the normal Mobile XY channel and neutralizes after 107 ms.</p>
             <div className="button-row">
               <button type="button" className="control-button" disabled={!operatorReady || motionCheckActive} onClick={() => jogForMotionCheck({ x_ratio: -MOTION_CHECK_RATIO, y_ratio: 0 })}>Jog X−</button>
