@@ -147,6 +147,10 @@ h2 { font-size: 1.07rem; }
   .eyebrow { max-width: 37vw; }
 }
 
+/* Usage: distinguish the explicit, supervised small-motion verification from ordinary painting controls. */
+.motion-check-card { border-color: #815c36; background: #2b2118; }
+.motion-check-card p { margin-bottom: 7px; color: #ffd5ad; font-size: 0.73rem; }
+
 @media (orientation: landscape) and (max-height: 719px) {
   .pbm-app { padding-top: max(7px, env(safe-area-inset-top)); }
   .control-layout { grid-template-columns: minmax(253px, 0.87fr) minmax(373px, 1.31fr); }
