@@ -151,6 +151,17 @@ export default function App() {
     }
   }
 
+  /** Acquire control and run the confirmed Pi-owned recovery and centering sequence. Usage: Initialize Sigmund. */
+  async function initializeMachine() {
+    if (!window.confirm(copy.initializeConfirm)) return;
+    try {
+      await runOperation("lease", "lease.acquire", { mode: "operator" });
+      await runOperation("machine_initialize", "machine.initialize");
+    } catch {
+      client?.stopContinuous("initialization failed");
+    }
+  }
+
   /** Clear a verified latched Pico stop without starting a session or output. Usage: explicit Clear Stop button. */
   async function clearMachineStop() {
     await runOperation("machine_clear_stop", "safety.clear_stop").catch(() => undefined);
@@ -238,6 +249,7 @@ export default function App() {
         <section className="workflow-card" aria-label="Painting session">
           <div className="section-heading"><h2>{copy.paintingSession}</h2><span>{operatorReady ? copy.controlsLive : copy.readOnly}</span></div>
           <div className="button-row">
+            <TaskButton state={state} operation="machine_initialize" label={copy.initialize} tone="warn" onClick={initializeMachine} disabled={state.session.active || state.connection !== "connected"} />
             <TaskButton state={state} operation="painting_session_start" label={copy.beginPainting} tone="good" onClick={beginPainting} disabled={state.session.active || state.connection !== "connected"} />
             <TaskButton state={state} operation="machine_clear_stop" label={copy.clearStop} tone="warn" onClick={clearMachineStop} disabled={!state.lease.owned} />
             <TaskButton state={state} operation="painting_session_end" label={copy.endPainting} tone="warn" onClick={endPainting} disabled={!state.session.active} />

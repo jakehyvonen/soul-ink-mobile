@@ -100,20 +100,49 @@ describe("SigmundClient", () => {
     const socket = FakeWebSocket.instances[0];
     socket.open();
     socket.receive({ type: "authentication.accepted", role: "controller" });
+    const acquisition = client.sendRequest("lease.acquire", { mode: "operator" });
+    const request = socket.sent.at(-1);
     socket.receive({
-      type: "lease",
-      payload: { lease: { holder: "mobile-127", mode: "operator" } },
+      correlation_id: request.request_id,
+      payload: {
+        kind: "lease.acquire",
+        ok: true,
+        result: { lease: { holder: "remote:session-127:user-131", mode: "operator" }, ok: true },
+      },
+      state: "accepted",
+      type: "command.lifecycle",
     });
+    await acquisition;
 
     await vi.advanceTimersByTimeAsync(2053);
 
     const heartbeat = socket.sent.find((frame) => frame.type === "lease.heartbeat");
     expect(heartbeat).toBeDefined();
     socket.receive({
-      type: "request.result",
-      request_id: heartbeat.request_id,
-      payload: { ok: true },
+      correlation_id: heartbeat.request_id,
+      payload: { kind: "lease.heartbeat", ok: true, result: { ok: true } },
+      state: "accepted",
+      type: "command.lifecycle",
     });
+    client.disconnect();
+  });
+
+  it("rejects a correlated gateway error without waiting for timeout", async () => {
+    const client = createPairedClient();
+    await client.connect();
+    const socket = FakeWebSocket.instances[0];
+    socket.open();
+    socket.receive({ type: "authentication.accepted", role: "controller" });
+    const pending = client.sendRequest("machine.initialize");
+    const request = socket.sent.at(-1);
+
+    socket.receive({
+      correlation_id: request.request_id,
+      error: "viewing device is not present",
+      type: "gateway.error",
+    });
+
+    await expect(pending).rejects.toThrow("viewing device is not present");
     client.disconnect();
   });
 

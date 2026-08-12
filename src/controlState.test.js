@@ -33,6 +33,16 @@ describe("PBM authoritative control state", () => {
     });
   });
 
+  it("uses transport-confirmed ownership for a gateway-derived holder", () => {
+    const state = pbmReducer(initialPbmState, {
+      type: "lease",
+      localHolder: "mobile-127",
+      owned_by_client: true,
+      payload: { lease: { holder: "remote:session-131:user-137", mode: "operator" } },
+    });
+    expect(state.lease.owned).toBe(true);
+  });
+
   it("does not treat an accepted syringe request as confirmed", () => {
     let state = pbmReducer(initialPbmState, { type: "operation.requested", name: "syringe_2", requestId: "pbm-113" });
     state = pbmReducer(state, { type: "operation.accepted", name: "syringe_2", requestId: "pbm-113" });

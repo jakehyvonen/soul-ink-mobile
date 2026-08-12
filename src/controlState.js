@@ -76,7 +76,7 @@ export function pbmReducer(state, event) {
         ...state,
         lease: {
           active,
-          owned: Boolean(active && active.holder === event.localHolder),
+          owned: event.owned_by_client ?? Boolean(active && active.holder === event.localHolder),
           mode: active?.mode || null,
         },
       };
@@ -113,9 +113,9 @@ export function pbmReducer(state, event) {
         notice: event.error,
       };
     case "command.lifecycle": {
-      const commandId = event.command_id || event.payload?.command_id || null;
+      const commandId = event.correlation_id || event.command_id || event.payload?.command_id || null;
       const correlatedName = Object.entries(state.operations).find(([, operation]) => operation.requestId === commandId)?.[0];
-      const operationName = correlatedName || event.operation || event.command || event.payload?.operation || event.payload?.command;
+      const operationName = correlatedName || event.operation || event.command || event.payload?.operation || event.payload?.command || event.payload?.kind;
       const lifecycle = event.state || event.payload?.state;
       if (!operationName || !lifecycle) return state;
       const failed = ["failed", "faulted"].includes(lifecycle);

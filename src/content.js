@@ -6,6 +6,7 @@
 export const mobileCopy = Object.freeze({
   en: Object.freeze({
     beginPainting: "Begin Painting", clearStop: "Clear Stop", controlsLive: "controls live",
+    initialize: "Initialize Sigmund", initializeConfirm: "Sigmund may move. Clear the E-stop, home XY if needed, and move to Center?",
     diagnostics: "Diagnostics", enablePhoneTilt: "Enable Phone Tilt", endPainting: "End Painting",
     holdCcw: "Hold CCW", holdCw: "Hold CW", holdDispense: "Hold Dispense", language: "Deutsch",
     level: "Level", localHardware: "LOCAL HARDWARE TEST: motion is enabled. Painting data is held in memory and will not be saved.",
@@ -17,6 +18,7 @@ export const mobileCopy = Object.freeze({
   }),
   de: Object.freeze({
     beginPainting: "Malen beginnen", clearStop: "Stopp aufheben", controlsLive: "Steuerung aktiv",
+    initialize: "Sigmund initialisieren", initializeConfirm: "Sigmund kann sich bewegen. Stopp aufheben, XY bei Bedarf referenzieren und zur Mitte fahren?",
     diagnostics: "Diagnose", enablePhoneTilt: "Handy-Neigung aktivieren", endPainting: "Malen beenden",
     holdCcw: "Gegen Uhrzeigersinn halten", holdCw: "Im Uhrzeigersinn halten", holdDispense: "Farbe ausgeben", language: "English",
     level: "Ausrichten", localHardware: "LOKALER HARDWARETEST: Bewegung ist aktiviert. Maldaten werden nur im Speicher gehalten und nicht gespeichert.",

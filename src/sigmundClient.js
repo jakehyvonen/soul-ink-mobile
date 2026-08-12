@@ -60,6 +60,7 @@ export class SigmundClient {
     this.reconnectTimer = null;
     this.heartbeatTimer = null;
     this.ownsLease = false;
+    this.authoritativeHolder = config.mode === "local" ? this.holder : null;
     this.closedByUser = false;
     this.status = "disconnected";
     this.admission = null;
@@ -128,15 +129,19 @@ export class SigmundClient {
       this.emit({ type: "client.error", error: "Invalid server message" });
       return;
     }
-    if (message.type === "request.result" && this.pending.has(message.request_id)) {
-      const pending = this.pending.get(message.request_id);
-      clearTimeout(pending.timeout);
-      this.pending.delete(message.request_id);
-      if (message.payload?.ok) pending.resolve({ ...message.payload, request_id: message.request_id });
-      else pending.reject(new Error(message.payload?.error || message.payload?.reason || "Request rejected"));
+    if (message.type === "request.result") {
+      this.settlePending(message.request_id, message.payload);
     }
-    if (message.type === "relay.error") {
-      this.emit({ type: "client.error", error: message.error || "Relay rejected the request" });
+    if (message.type === "command.lifecycle" && message.correlation_id) {
+      const outcome = message.payload || {};
+      this.settlePending(message.correlation_id, outcome.ok
+        ? { ...(outcome.result || {}), ok: true }
+        : { error: outcome.error || outcome.result?.error || outcome.result?.reason, ok: false });
+    }
+    if (message.type === "gateway.error" || message.type === "relay.error") {
+      const error = message.error || "Relay rejected the request";
+      this.settlePending(message.correlation_id, { error, ok: false });
+      this.emit({ type: "client.error", error });
     }
     if (message.type === "authentication.accepted" && message.role === "controller") {
       this.setStatus("connected");
@@ -144,7 +149,7 @@ export class SigmundClient {
       this.logEvent("client_ready", { mode: this.config.mode });
     }
     if (message.type === "lease") {
-      this.updateHeartbeat(
+      message.owned_by_client = this.updateHeartbeat(
         message.payload?.active ?? message.payload?.lease ?? message.active ?? message.lease ?? null,
       );
     }
@@ -157,6 +162,7 @@ export class SigmundClient {
     this.admission = null;
     this.stopSampler();
     this.stopHeartbeat();
+    this.authoritativeHolder = this.config.mode === "local" ? this.holder : null;
     this.values.clear();
     this.rejectPending("Connection closed");
     this.setStatus("disconnected");
@@ -190,7 +196,7 @@ export class SigmundClient {
         this.pending.delete(requestId);
         reject(new Error(`${type} timed out`));
       }, timeoutMs);
-      this.pending.set(requestId, { resolve, reject, timeout });
+      this.pending.set(requestId, { resolve, reject, timeout, type });
       const sentAt = Date.now();
       this.sendFrame({
         type,
@@ -203,6 +209,29 @@ export class SigmundClient {
     });
     request.requestId = requestId;
     return request;
+  }
+
+  /** Resolve one local result or gateway lifecycle against its browser request. Usage: all discrete replies. */
+  settlePending(requestId, payload = {}) {
+    if (!requestId || !this.pending.has(requestId)) return false;
+    const pending = this.pending.get(requestId);
+    clearTimeout(pending.timeout);
+    this.pending.delete(requestId);
+    if (!payload?.ok) {
+      pending.reject(new Error(payload?.error || payload?.reason || "Request rejected"));
+      return true;
+    }
+    if (this.config.mode === "remote" && pending.type === "lease.acquire" && payload.lease?.holder) {
+      this.authoritativeHolder = payload.lease.holder;
+      this.updateHeartbeat(payload.lease);
+      this.emit({ type: "lease", payload: { active: payload.lease }, owned_by_client: true });
+    } else if (pending.type === "lease.release") {
+      this.authoritativeHolder = this.config.mode === "local" ? this.holder : null;
+      this.updateHeartbeat(null);
+      this.emit({ type: "lease", payload: { active: null }, owned_by_client: false });
+    }
+    pending.resolve({ ...payload, request_id: requestId });
+    return true;
   }
 
   /** Store the latest normalized control value for 53 ms sampling. Usage: joystick, tilt, pump, rotation. */
@@ -260,7 +289,7 @@ export class SigmundClient {
 
   /** Renew only a currently owned lease and stop on ownership loss. Usage: lease event handling. */
   updateHeartbeat(activeLease) {
-    const ownsLease = activeLease?.holder === this.holder;
+    const ownsLease = Boolean(this.authoritativeHolder && activeLease?.holder === this.authoritativeHolder);
     const lostOwnedLease = this.ownsLease && !ownsLease;
     this.ownsLease = ownsLease;
     if (!ownsLease) {
