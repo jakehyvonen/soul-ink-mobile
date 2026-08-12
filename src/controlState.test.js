@@ -89,4 +89,12 @@ describe("PBM authoritative control state", () => {
     });
     expect(state.notice).toBe("Painting persistence is not configured");
   });
+
+  it("clears a transient rejection after the Pi confirms control delivery", () => {
+    let state = pbmReducer(initialPbmState, { type: "client.error", error: "message is stale or sent in the future" });
+
+    state = pbmReducer(state, { type: "client.control_delivery", channel: "xy_joystick", state: "confirmed" });
+
+    expect(state.notice).toBe(initialPbmState.notice);
+  });
 });

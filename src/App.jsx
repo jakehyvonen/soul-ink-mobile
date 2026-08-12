@@ -220,24 +220,30 @@ export default function App() {
           ? copy.controlNeedsSession
           : copy.controlLive;
   const xyDeliveryLabel = copy.xyDelivery[operatorReady ? xyDelivery : "idle"] || copy.xyDelivery.idle;
+  const importantNotice = state.notice !== initialPbmState.notice ? state.notice : null;
 
   if (!config) return <main className="boot-screen"><h1>{copy.title}</h1><p>{state.notice}</p></main>;
 
   return (
     <FullScreen handle={fullscreen}>
       <main className="pbm-app">
-        <header>
-          <div>
-            <p className="eyebrow">{config.mode} · {config.machineId}</p>
+        <header className="app-header">
+          <div className="brand-lockup">
             <h1>{copy.title}</h1>
+            <p className="eyebrow">{config.mode} · {config.machineId}</p>
           </div>
-          {config.mode === "remote" && <a className="language-switch" href={locale === "de" ? "/mobile/" : "/de/mobile/"}>{copy.language}</a>}
-          <button type="button" className="stop-all" disabled={state.connection !== "connected"} onClick={() => client.stopAll().catch((error) => dispatch({ type: "client.error", error: error.message }))}>
-            {copy.stopAll}
-          </button>
+          <div className="header-actions">
+            {config.mode === "remote" && <a className="language-switch" href={locale === "de" ? "/mobile/" : "/de/mobile/"}>{copy.language}</a>}
+            <button type="button" className="stop-all" disabled={state.connection !== "connected"} onClick={() => client.stopAll().catch((error) => dispatch({ type: "client.error", error: error.message }))}>
+              {copy.stopAll}
+            </button>
+          </div>
         </header>
 
-        <StatusStrip state={state} />
+        <div className="status-row">
+          <StatusStrip state={state} copy={copy.status} />
+          {importantNotice && <p className="notice" role="status">{importantNotice}</p>}
+        </div>
         {state.fault.active && (
           <p className="fault-banner" role="alert">
             {String(state.fault.source).toUpperCase()} {state.fault.code}: {state.fault.message}
@@ -251,8 +257,7 @@ export default function App() {
             {copy.localHardware}
           </p>
         )}
-        <p className="notice" role="status">{state.notice}</p>
-        <p className={`control-status${operatorReady ? " live" : " paused"}`} role="status">{controlStatus}</p>
+        {!operatorReady && <p className="control-status paused" role="status">{controlStatus}</p>}
         {state.profile?.pbm_log?.path && (
           <details className="diagnostics">
             <summary>{copy.diagnostics}</summary>
@@ -263,18 +268,20 @@ export default function App() {
         <section className="workflow-card" aria-label="Painting session">
           <div className="section-heading"><h2>{copy.paintingSession}</h2><span>{operatorReady ? copy.controlsLive : copy.readOnly}</span></div>
           <div className="button-row">
-            <TaskButton state={state} operation="machine_initialize" label={copy.initialize} tone="warn" onClick={initializeMachine} disabled={state.session.active || state.connection !== "connected"} />
-            <TaskButton state={state} operation="painting_session_start" label={copy.beginPainting} tone="good" onClick={beginPainting} disabled={state.session.active || state.connection !== "connected"} />
+            {!state.session.active && <TaskButton state={state} operation="machine_initialize" label={copy.initialize} tone="warn" onClick={initializeMachine} disabled={state.connection !== "connected"} />}
+            {!state.session.active && <TaskButton state={state} operation="painting_session_start" label={copy.beginPainting} tone="good" onClick={beginPainting} disabled={state.connection !== "connected"} />}
             <TaskButton state={state} operation="machine_clear_stop" label={copy.clearStop} tone="warn" onClick={clearMachineStop} disabled={!state.lease.owned} />
-            <TaskButton state={state} operation="painting_session_end" label={copy.endPainting} tone="warn" onClick={endPainting} disabled={!state.session.active} />
-            <TaskButton
-              state={state}
-              operation={state.recording.active ? "motif_recording_stop" : "motif_recording_start"}
-              label={state.recording.active ? copy.stopMotif : copy.recordMotif}
-              tone="record"
-              onClick={() => runOperation(state.recording.active ? "motif_recording_stop" : "motif_recording_start", state.recording.active ? "motif_recording_stop" : "motif_recording_start").catch(() => undefined)}
-              disabled={!operatorReady}
-            />
+            {state.session.active && <TaskButton state={state} operation="painting_session_end" label={copy.endPainting} tone="warn" onClick={endPainting} />}
+            {state.session.active && (
+              <TaskButton
+                state={state}
+                operation={state.recording.active ? "motif_recording_stop" : "motif_recording_start"}
+                label={state.recording.active ? copy.stopMotif : copy.recordMotif}
+                tone="record"
+                onClick={() => runOperation(state.recording.active ? "motif_recording_stop" : "motif_recording_start", state.recording.active ? "motif_recording_stop" : "motif_recording_start").catch(() => undefined)}
+                disabled={!operatorReady}
+              />
+            )}
           </div>
         </section>
 

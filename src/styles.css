@@ -24,21 +24,24 @@ button { font: inherit; touch-action: manipulation; }
 
 .pbm-app {
   min-height: 100dvh;
-  padding: max(13px, env(safe-area-inset-top)) max(17px, env(safe-area-inset-right)) max(17px, env(safe-area-inset-bottom)) max(17px, env(safe-area-inset-left));
+  padding: max(7px, env(safe-area-inset-top)) max(11px, env(safe-area-inset-right)) max(11px, env(safe-area-inset-bottom)) max(11px, env(safe-area-inset-left));
   background: radial-gradient(circle at 75% 0%, #183847 0, #0a1015 41rem);
 }
 
-header, .section-heading, .button-row, .status-strip, .task-grid, .hold-grid { display: flex; }
-header { align-items: center; justify-content: space-between; gap: 17px; }
+header, .brand-lockup, .header-actions, .status-row, .section-heading, .button-row, .status-strip, .task-grid, .hold-grid { display: flex; }
+header { align-items: center; justify-content: space-between; gap: 11px; }
+.brand-lockup, .header-actions, .status-row { align-items: center; }
+.brand-lockup { min-width: 0; gap: 9px; }
+.header-actions { gap: 11px; }
 h1, h2, p { margin: 0; }
-h1 { font-size: clamp(1.53rem, 4vw, 2.31rem); letter-spacing: -0.03em; }
+h1 { font-size: clamp(1.07rem, 3vw, 1.47rem); letter-spacing: -0.03em; white-space: nowrap; }
 h2 { font-size: 1.07rem; }
-.eyebrow { color: var(--cyan); font-size: 0.73rem; text-transform: uppercase; letter-spacing: 0.13em; }
-.language-switch { color: #b9c8d3; font-weight: 800; }
+.eyebrow { overflow: hidden; color: var(--cyan); font-size: 0.63rem; text-transform: uppercase; text-overflow: ellipsis; white-space: nowrap; letter-spacing: 0.09em; }
+.language-switch { color: #b9c8d3; font-size: 0.73rem; font-weight: 800; }
 
 .stop-all {
-  min-height: 53px;
-  min-width: 131px;
+  min-height: 41px;
+  min-width: 107px;
   border: 2px solid #ff9ba4;
   border-radius: 13px;
   color: white;
@@ -49,21 +52,21 @@ h2 { font-size: 1.07rem; }
 }
 
 .stop-all:disabled, button:disabled { opacity: 0.43; cursor: not-allowed; }
-.status-strip { gap: 7px; flex-wrap: wrap; margin: 13px 0 7px; }
+.status-row { gap: 7px; flex-wrap: wrap; margin-top: 5px; }
+.status-strip { gap: 5px; flex-wrap: wrap; }
 .status { border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px; background: #101a20; font-size: 0.73rem; }
 .status.good { color: var(--green); border-color: #3e8f5a; }
 .status.warn { color: var(--orange); border-color: #815c36; }
 .status.muted { color: var(--muted); }
-.notice { min-height: 1.4em; color: var(--muted); font-size: 0.83rem; }
+.notice { color: var(--orange); font-size: 0.73rem; }
 .control-status {
-  margin-top: 7px;
-  padding: 9px 13px;
+  margin-top: 5px;
+  padding: 7px 11px;
   border: 1px solid var(--line);
   border-radius: 11px;
   font-size: 0.83rem;
   font-weight: 750;
 }
-.control-status.live { color: #d8ffe0; border-color: #3e8f5a; background: #163521; }
 .control-status.paused { color: #ffd5ad; border-color: #815c36; background: #3d2816; }
 .diagnostics { margin-top: 5px; color: var(--muted); font-size: 0.73rem; }
 .diagnostics code { display: block; margin-top: 5px; overflow-wrap: anywhere; color: var(--cyan); }
@@ -99,23 +102,23 @@ h2 { font-size: 1.07rem; }
 }
 
 .workflow-card, .joystick-card, .controls-card {
-  margin-top: 13px;
-  padding: 13px;
+  margin-top: 7px;
+  padding: 11px;
   border: 1px solid var(--line);
   border-radius: 17px;
   background: color-mix(in srgb, var(--panel) 93%, transparent);
   box-shadow: 0 13px 37px #0007;
 }
 
-.section-heading { align-items: baseline; justify-content: space-between; gap: 13px; margin-bottom: 11px; }
+.section-heading { align-items: baseline; justify-content: space-between; gap: 11px; margin-bottom: 7px; }
 .section-heading span { color: var(--muted); font-size: 0.73rem; }
-.button-row, .task-grid, .hold-grid { gap: 11px; flex-wrap: wrap; }
-.button-row > *, .task-grid > *, .hold-grid > * { flex: 1 1 113px; }
-.control-layout { display: grid; grid-template-columns: minmax(283px, 1fr) minmax(313px, 1.1fr); gap: 13px; }
+.button-row, .task-grid, .hold-grid { gap: 7px; flex-wrap: wrap; }
+.button-row > *, .task-grid > *, .hold-grid > * { flex: 1 1 103px; }
+.control-layout { display: grid; grid-template-columns: minmax(283px, 1fr) minmax(313px, 1.1fr); gap: 7px; }
 
 .task-button, .control-button {
-  min-height: 47px;
-  padding: 9px 13px;
+  min-height: 43px;
+  padding: 7px 11px;
   border: 1px solid #52707d;
   border-radius: 11px;
   color: #edf8fa;
@@ -131,7 +134,7 @@ h2 { font-size: 1.07rem; }
 .control-button.pump { border-color: #bd6f39; color: var(--orange); }
 .task-button:active, .control-button:active { transform: translateY(1px); filter: brightness(1.27); }
 
-.joystick-shell { width: min(100%, 467px); aspect-ratio: 1; margin: -17px auto; touch-action: none; }
+.joystick-shell { width: min(100%, 431px); aspect-ratio: 1; margin: -13px auto; touch-action: none; }
 .joystick-shell canvas { max-width: 100%; max-height: 100%; }
 .joystick-shell.is-disabled { opacity: 0.31; filter: grayscale(0.83); pointer-events: none; }
 .boot-screen { min-height: 100dvh; display: grid; place-content: center; gap: 13px; padding: 23px; text-align: center; background: #0a1015; color: #edf8fa; }
@@ -139,12 +142,21 @@ h2 { font-size: 1.07rem; }
 
 @media (max-width: 719px) {
   .control-layout { grid-template-columns: 1fr; }
-  .joystick-shell { max-height: 53dvh; }
+  .joystick-shell { max-height: 43dvh; }
+  .brand-lockup { display: block; }
+  .eyebrow { max-width: 37vw; }
 }
 
 @media (orientation: landscape) and (max-height: 719px) {
   .pbm-app { padding-top: max(7px, env(safe-area-inset-top)); }
   .control-layout { grid-template-columns: minmax(253px, 0.87fr) minmax(373px, 1.31fr); }
-  .joystick-shell { height: calc(100dvh - 213px); width: auto; }
-  .workflow-card, .joystick-card, .controls-card { margin-top: 7px; padding: 11px; }
+  .joystick-shell { height: calc(100dvh - 173px); width: auto; }
+  .workflow-card, .joystick-card, .controls-card { padding: 7px; }
+  .section-heading { margin-bottom: 5px; }
+}
+
+@media (max-width: 419px) {
+  .language-switch { font-size: 0.63rem; }
+  .stop-all { min-width: 89px; padding-inline: 7px; }
+  .status { padding: 3px 7px; font-size: 0.67rem; }
 }

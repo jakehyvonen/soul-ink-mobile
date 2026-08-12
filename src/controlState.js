@@ -59,6 +59,8 @@ export function pbmReducer(state, event) {
       return { ...state, notice: event.error };
     case "client.safety_stop":
       return { ...state, notice: `Continuous controls stopped: ${event.reason}` };
+    case "client.control_delivery":
+      return event.state === "confirmed" ? { ...state, notice: initialPbmState.notice } : state;
     case "profile":
       return { ...state, profile: event.payload };
     case "state": {

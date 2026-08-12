@@ -1,27 +1,28 @@
 /**
- * Descriptor: Persistent PBM connection, health, lease, session, and recording summary.
- * Usage: App renders it above every workflow so degraded states stay visible.
+ * Descriptor: Compact Soul Ink Mobile readiness and exception summary.
+ * Usage: App renders only statuses that require attention, or one ready badge.
  */
 
-/** Map a state word to a semantic status tone. Usage: status badge rendering. */
-function toneFor(value, goodValues) {
-  return goodValues.includes(value) ? "good" : value === "unknown" || value === "idle" ? "muted" : "warn";
+/** Select status exceptions without repeating healthy details. Usage: compact header rendering and tests. */
+export function importantStatuses(state, copy) {
+  const entries = [];
+  if (state.connection !== "connected") entries.push({ label: `${copy.link}: ${state.connection}`, tone: "warn" });
+  if (!new Set(["ok", "healthy", "ready"]).has(state.health)) {
+    entries.push({ label: `${copy.health}: ${String(state.health)}`, tone: state.health === "unknown" ? "muted" : "warn" });
+  }
+  if (!state.lease.owned) entries.push({ label: `${copy.lease}: ${copy.readOnly}`, tone: "warn" });
+  if (!state.session.active) entries.push({ label: `${copy.session}: ${state.session.status}`, tone: "muted" });
+  if (state.recording.active) entries.push({ label: copy.recording, tone: "good" });
+  return entries.length > 0 ? entries : [{ label: copy.ready, tone: "good" }];
 }
 
-/** Render all safety-relevant status in one compact strip. Usage: App header. */
-export default function StatusStrip({ state }) {
-  const leaseText = state.lease.owned ? state.lease.mode || "operator" : "read-only";
+/** Render only safety-relevant exceptions or one ready badge. Usage: App header. */
+export default function StatusStrip({ state, copy }) {
   return (
-    <div className="status-strip" aria-label="Sigmund status">
-      <span className={`status ${toneFor(state.connection, ["connected"])}`}>Link: {state.connection}</span>
-      <span className={`status ${toneFor(state.health, ["ok", "healthy", "ready"])}`}>Health: {String(state.health)}</span>
-      <span className={`status ${toneFor(leaseText, ["operator"])}`}>Lease: {leaseText}</span>
-      <span className={`status ${toneFor(state.session.active ? "active" : "idle", ["active"])}`}>
-        Session: {state.session.active ? "active" : state.session.status}
-      </span>
-      <span className={`status ${toneFor(state.recording.active ? "recording" : "idle", ["recording"])}`}>
-        Motif: {state.recording.active ? "recording" : state.recording.status}
-      </span>
+    <div className="status-strip" aria-label={copy.label}>
+      {importantStatuses(state, copy).map((entry) => (
+        <span key={entry.label} className={`status ${entry.tone}`}>{entry.label}</span>
+      ))}
     </div>
   );
 }

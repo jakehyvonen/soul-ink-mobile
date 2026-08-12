@@ -5,6 +5,7 @@
 import { fireEvent, render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import HoldControlButton from "./components/HoldControlButton.jsx";
+import StatusStrip from "./components/StatusStrip.jsx";
 import { routeXyVector } from "./xyControl.js";
 
 describe("continuous-control pointer safety", () => {
@@ -38,5 +39,36 @@ describe("continuous-control pointer safety", () => {
     expect(client.setControl).toHaveBeenCalledWith("xy_joystick", { x_ratio: 0.5, y_ratio: -0.25 });
     expect(client.clearControl).toHaveBeenCalledOnce();
     expect(client.clearControl).toHaveBeenCalledWith("xy_joystick");
+  });
+});
+
+describe("compact control status", () => {
+  const copy = { health: "Health", label: "Sigmund status", lease: "Lease", link: "Link", readOnly: "read-only", ready: "Sigmund ready", recording: "Recording motif", session: "Session" };
+
+  /** Build one renderable status snapshot. Usage: compact header assertions. */
+  function statusState(overrides = {}) {
+    return {
+      connection: "connected",
+      health: "healthy",
+      lease: { owned: true },
+      recording: { active: false },
+      session: { active: true, status: "active" },
+      ...overrides,
+    };
+  }
+
+  it("collapses healthy details into one ready badge", () => {
+    const { getByText, queryByText } = render(<StatusStrip state={statusState()} copy={copy} />);
+
+    expect(getByText("Sigmund ready")).toBeInTheDocument();
+    expect(queryByText(/Link:/)).not.toBeInTheDocument();
+    expect(queryByText(/Lease:/)).not.toBeInTheDocument();
+  });
+
+  it("shows only connection states that require attention", () => {
+    const { getByText, queryByText } = render(<StatusStrip state={statusState({ connection: "disconnected" })} copy={copy} />);
+
+    expect(getByText("Link: disconnected")).toBeInTheDocument();
+    expect(queryByText("Sigmund ready")).not.toBeInTheDocument();
   });
 });
