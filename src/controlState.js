@@ -151,6 +151,11 @@ export function canOperate(state) {
   return state.connection === "connected" && state.lease.owned && state.session.active;
 }
 
+/** Keep task buttons locked only while an operation is still executing. Usage: TaskButton disabled state. */
+export function operationIsBusy(state, name) {
+  return new Set(["requested", "running"]).has(state.operations[name]?.status);
+}
+
 /** Produce concise requested/accepted/confirmed/failed text. Usage: task buttons. */
 export function operationLabel(state, name, fallback) {
   const status = state.operations[name]?.status;

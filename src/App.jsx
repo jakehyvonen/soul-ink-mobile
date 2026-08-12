@@ -4,7 +4,7 @@
  */
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { FullScreen, useFullScreenHandle } from "react-full-screen";
-import { canOperate, initialPbmState, operationLabel, pbmReducer } from "./controlState.js";
+import { canOperate, initialPbmState, operationIsBusy, operationLabel, pbmReducer } from "./controlState.js";
 import { mobileCopy, mobileLocale } from "./content.js";
 import { loadRuntimeConfig } from "./runtimeConfig.js";
 import { motionCheckRequested, MOTION_CHECK_RATIO, runMotionCheck } from "./motionCheck.js";
@@ -35,7 +35,7 @@ export function orientationRatios(event) {
 
 /** Render one task button with lifecycle text. Usage: workflow, syringe, and replay grids. */
 function TaskButton({ state, operation, label, onClick, disabled = false, tone = "neutral" }) {
-  const busy = new Set(["requested", "accepted", "running"]).has(state.operations[operation]?.status);
+  const busy = operationIsBusy(state, operation);
   return (
     <button type="button" className={`task-button ${tone}`} onClick={onClick} disabled={disabled || busy}>
       {operationLabel(state, operation, label)}

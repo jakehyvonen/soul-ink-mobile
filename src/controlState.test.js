@@ -3,7 +3,7 @@
  * Usage: `npm test` guards lease ownership and non-optimistic task state.
  */
 import { describe, expect, it } from "vitest";
-import { canOperate, initialPbmState, pbmReducer } from "./controlState.js";
+import { canOperate, initialPbmState, operationIsBusy, pbmReducer } from "./controlState.js";
 
 describe("PBM authoritative control state", () => {
   it("stays read-only merely because a socket connected", () => {
@@ -88,6 +88,11 @@ describe("PBM authoritative control state", () => {
       message: "Painting persistence is not configured",
     });
     expect(state.notice).toBe("Painting persistence is not configured");
+  });
+
+  it("re-enables a task after its accepted result", () => {
+    expect(operationIsBusy({ operations: { initialize: { status: "requested" } } }, "initialize")).toBe(true);
+    expect(operationIsBusy({ operations: { initialize: { status: "accepted" } } }, "initialize")).toBe(false);
   });
 
   it("clears a transient rejection after the Pi confirms control delivery", () => {
