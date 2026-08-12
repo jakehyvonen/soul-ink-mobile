@@ -8,6 +8,13 @@ const tokenPattern = /^[A-Za-z0-9_-]{43,1009}$/;
 const admissionPattern = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 const sessionPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,250}$/;
 const machinePattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+const pairingClaimAttempts = 7;
+const pairingRetryDelayMs = 503;
+
+/** Pause briefly while an authenticated viewing socket finishes registering. */
+function waitForPairingHost(delayMs) {
+  return new Promise((resolve) => globalThis.setTimeout(resolve, delayMs));
+}
 
 /** Validate the credential-free public fields needed by the mobile application. */
 function validateSession(value) {
@@ -60,11 +67,13 @@ async function readResponse(response) {
 
 /** Own one public session ID and memory-only admissions backed by an HttpOnly cookie. */
 export class StudioPairing {
+  /** Configure browser services while keeping the pairing secret memory-only. */
   constructor(options = {}) {
     this.fetchImpl = options.fetchImpl || globalThis.fetch.bind(globalThis);
     this.locationValue = options.locationValue || globalThis.location;
     this.historyValue = options.historyValue || globalThis.history;
     this.storage = options.storage || globalThis.sessionStorage;
+    this.waitImpl = options.waitImpl || waitForPairingHost;
     this.firstAdmission = null;
     this.session = null;
   }
@@ -73,13 +82,18 @@ export class StudioPairing {
   async prepare() {
     const pairingToken = consumePairingToken(this.locationValue, this.historyValue);
     if (pairingToken) {
-      const response = await this.fetchImpl("/api/control-pairings/claim", {
-        body: JSON.stringify({ pairingToken }),
-        cache: "no-store",
-        credentials: "same-origin",
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      });
+      let response;
+      for (let attempt = 0; attempt < pairingClaimAttempts; attempt += 1) {
+        response = await this.fetchImpl("/api/control-pairings/claim", {
+          body: JSON.stringify({ pairingToken }),
+          cache: "no-store",
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        });
+        if (response.ok || response.status !== 409 || attempt === pairingClaimAttempts - 1) break;
+        await this.waitImpl(pairingRetryDelayMs);
+      }
       const result = await readResponse(response);
       this.session = validateSession(result.session);
       this.firstAdmission = validateAdmission(result.admission, this.session.machineId);

@@ -62,6 +62,24 @@ describe("StudioPairing", () => {
     expect(storage.setItem).not.toHaveBeenCalledWith(expect.anything(), pairingToken);
   });
 
+  it("retries a valid claim while the viewing socket finishes connecting", async () => {
+    const waitImpl = vi.fn(async () => undefined);
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce({ ok: false, status: 409 })
+      .mockResolvedValueOnce({ ok: true, json: async () => claimResponse(), status: 200 });
+    const service = new StudioPairing({
+      fetchImpl,
+      historyValue: { replaceState: vi.fn() },
+      locationValue: { hash: `#pair=${pairingToken}`, pathname: "/mobile/", search: "" },
+      storage: { getItem: vi.fn(), removeItem: vi.fn(), setItem: vi.fn() },
+      waitImpl,
+    });
+
+    await expect(service.prepare()).resolves.toMatchObject({ id: "control-session-127" });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(waitImpl).toHaveBeenCalledWith(503);
+  });
+
   it("keeps the browser receiver for default claim requests", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(function () {
       expect(this).toBe(globalThis);
