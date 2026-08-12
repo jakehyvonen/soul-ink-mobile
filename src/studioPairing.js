@@ -8,8 +8,8 @@ const tokenPattern = /^[A-Za-z0-9_-]{43,1009}$/;
 const admissionPattern = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 const sessionPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,250}$/;
 const machinePattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
-const pairingClaimAttempts = 7;
-const pairingRetryDelayMs = 503;
+const pairingClaimAttempts = 47;
+const pairingRetryDelayMs = 1009;
 
 /** Pause briefly while an authenticated viewing socket finishes registering. */
 function waitForPairingHost(delayMs) {
@@ -61,7 +61,12 @@ export function consumePairingToken(locationValue = globalThis.location, history
 
 /** Parse one no-store Studio API response without reflecting server detail. */
 async function readResponse(response) {
-  if (!response.ok) throw new Error("This pairing is unavailable or expired.");
+  if (!response.ok) {
+    const message = response.status === 409
+      ? "The Studio viewing device did not reconnect. Keep it open, then refresh this page to retry the same pairing."
+      : "This pairing is unavailable or expired.";
+    throw new Error(message);
+  }
   return response.json();
 }
 

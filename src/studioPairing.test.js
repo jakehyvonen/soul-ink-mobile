@@ -77,7 +77,27 @@ describe("StudioPairing", () => {
 
     await expect(service.prepare()).resolves.toMatchObject({ id: "control-session-127" });
     expect(fetchImpl).toHaveBeenCalledTimes(2);
-    expect(waitImpl).toHaveBeenCalledWith(503);
+    expect(waitImpl).toHaveBeenCalledWith(1009);
+  });
+
+  it("keeps one valid QR claim alive across the full host reconnect window", async () => {
+    const waitImpl = vi.fn(async () => undefined);
+    const unavailable = Array.from({ length: 46 }, () => ({ ok: false, status: 409 }));
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(unavailable[0]);
+    unavailable.slice(1).forEach((response) => fetchImpl.mockResolvedValueOnce(response));
+    fetchImpl.mockResolvedValueOnce({ ok: true, json: async () => claimResponse(), status: 200 });
+    const service = new StudioPairing({
+      fetchImpl,
+      historyValue: { replaceState: vi.fn() },
+      locationValue: { hash: `#pair=${pairingToken}`, pathname: "/mobile/", search: "" },
+      storage: { getItem: vi.fn(), removeItem: vi.fn(), setItem: vi.fn() },
+      waitImpl,
+    });
+
+    await expect(service.prepare()).resolves.toMatchObject({ id: "control-session-127" });
+    expect(fetchImpl).toHaveBeenCalledTimes(47);
+    expect(waitImpl).toHaveBeenCalledTimes(46);
   });
 
   it("keeps the browser receiver for default claim requests", async () => {
