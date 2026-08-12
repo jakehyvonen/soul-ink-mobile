@@ -289,7 +289,7 @@ export class SigmundClient {
     this.sampleTimer = null;
   }
 
-  /** Renew only a currently owned lease and stop on ownership loss. Usage: lease event handling. */
+  /** Renew only a currently owned lease, stop on loss, and report ownership to the reducer. Usage: lease event handling. */
   updateHeartbeat(activeLease) {
     const ownsLease = Boolean(this.authoritativeHolder && activeLease?.holder === this.authoritativeHolder);
     const lostOwnedLease = this.ownsLease && !ownsLease;
@@ -297,13 +297,14 @@ export class SigmundClient {
     if (!ownsLease) {
       this.stopHeartbeat();
       if (lostOwnedLease) this.stopContinuous("lease loss");
-      return;
+      return false;
     }
     if (!this.heartbeatTimer) {
       this.heartbeatTimer = setInterval(() => {
         void this.renewLease();
       }, RECONNECT_DELAY_MS);
     }
+    return true;
   }
 
   /** Renew an owned lease once and surface a delayed renewal without overlapping requests. Usage: heartbeat timer and foreground recovery. */

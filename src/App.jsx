@@ -3,6 +3,7 @@
  * Usage: main.jsx renders App; runtime-config.json selects local or Studio-paired transport.
  */
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { FullScreen, useFullScreenHandle } from "react-full-screen";
 import { canOperate, initialPbmState, operationLabel, pbmReducer } from "./controlState.js";
 import { mobileCopy, mobileLocale } from "./content.js";
 import { loadRuntimeConfig } from "./runtimeConfig.js";
@@ -52,6 +53,7 @@ export default function App() {
   const locale = mobileLocale();
   const copy = mobileCopy[locale];
   const orientationRef = useRef({ u_ratio: 0, v_ratio: 0 });
+  const fullscreen = useFullScreenHandle();
   const operatorReady = canOperate(state);
   useSafetyStops(client);
 
@@ -143,6 +145,7 @@ export default function App() {
         throw error;
       }
       await runOperation("painting_session_start", "painting_session_start");
+      await fullscreen.enter();
     } catch {
       client?.stopContinuous("session start failed");
     }
@@ -150,7 +153,6 @@ export default function App() {
 
   /** Acquire control and run the confirmed Pi-owned recovery and centering sequence. Usage: Initialize Sigmund. */
   async function initializeMachine() {
-    if (!window.confirm(copy.initializeConfirm)) return;
     try {
       await runOperation("lease", "lease.acquire", { mode: "operator" });
       await runOperation("machine_initialize", "machine.initialize");
@@ -217,7 +219,8 @@ export default function App() {
   if (!config) return <main className="boot-screen"><h1>{copy.title}</h1><p>{state.notice}</p></main>;
 
   return (
-    <main className="pbm-app">
+    <FullScreen handle={fullscreen}>
+      <main className="pbm-app">
         <header>
           <div>
             <p className="eyebrow">{config.mode} · {config.machineId}</p>
@@ -302,6 +305,7 @@ export default function App() {
             ))}
           </div>
         </section>
-    </main>
+      </main>
+    </FullScreen>
   );
 }

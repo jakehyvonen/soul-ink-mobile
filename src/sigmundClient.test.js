@@ -96,6 +96,8 @@ describe("SigmundClient", () => {
 
   it("heartbeats a gateway-nested remote operator lease", async () => {
     const client = createPairedClient();
+    const events = [];
+    client.subscribe((event) => events.push(event));
     await client.connect();
     const socket = FakeWebSocket.instances[0];
     socket.open();
@@ -113,6 +115,12 @@ describe("SigmundClient", () => {
       type: "command.lifecycle",
     });
     await acquisition;
+
+    socket.receive({
+      payload: { action: "heartbeat", lease: { holder: "remote:session-127:user-131", mode: "operator" } },
+      type: "lease",
+    });
+    expect(events.at(-1)).toMatchObject({ type: "lease", owned_by_client: true });
 
     await vi.advanceTimersByTimeAsync(2053);
 
