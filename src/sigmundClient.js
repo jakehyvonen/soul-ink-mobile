@@ -59,6 +59,7 @@ export class SigmundClient {
     this.sampleTimer = null;
     this.reconnectTimer = null;
     this.heartbeatTimer = null;
+    this.heartbeatInFlight = null;
     this.ownsLease = false;
     this.authoritativeHolder = config.mode === "local" ? this.holder : null;
     this.closedByUser = false;
@@ -221,7 +222,7 @@ export class SigmundClient {
       pending.reject(new Error(payload?.error || payload?.reason || "Request rejected"));
       return true;
     }
-    if (this.config.mode === "remote" && pending.type === "lease.acquire" && payload.lease?.holder) {
+    if (this.config.mode === "remote" && new Set(["lease.acquire", "lease.heartbeat"]).has(pending.type) && payload.lease?.holder) {
       this.authoritativeHolder = payload.lease.holder;
       this.updateHeartbeat(payload.lease);
       this.emit({ type: "lease", payload: { active: payload.lease }, owned_by_client: true });
@@ -230,6 +231,7 @@ export class SigmundClient {
       this.updateHeartbeat(null);
       this.emit({ type: "lease", payload: { active: null }, owned_by_client: false });
     }
+    if (payload.painting) this.emit({ type: "painting.state", payload: payload.painting });
     pending.resolve({ ...payload, request_id: requestId });
     return true;
   }
@@ -299,9 +301,24 @@ export class SigmundClient {
     }
     if (!this.heartbeatTimer) {
       this.heartbeatTimer = setInterval(() => {
-        this.sendRequest("lease.heartbeat").catch(() => this.stopContinuous("lease heartbeat failed"));
+        void this.renewLease();
       }, RECONNECT_DELAY_MS);
     }
+  }
+
+  /** Renew an owned lease once and surface a delayed renewal without overlapping requests. Usage: heartbeat timer and foreground recovery. */
+  async renewLease() {
+    if (!this.ownsLease || !this.isOpen()) return false;
+    if (this.heartbeatInFlight) return this.heartbeatInFlight;
+    this.heartbeatInFlight = this.sendRequest("lease.heartbeat")
+      .then(() => true)
+      .catch((error) => {
+        this.stopContinuous("lease heartbeat failed");
+        this.emit({ type: "client.error", error: `Lease renewal failed: ${error.message}` });
+        return false;
+      })
+      .finally(() => { this.heartbeatInFlight = null; });
+    return this.heartbeatInFlight;
   }
 
   /** Stop automatic lease renewal. Usage: lease loss, socket loss, and disconnect. */

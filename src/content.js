@@ -6,6 +6,11 @@
 export const mobileCopy = Object.freeze({
   en: Object.freeze({
     beginPainting: "Begin Painting", clearStop: "Clear Stop", controlsLive: "controls live",
+    controlDisconnected: "Control unavailable: the phone is disconnected from Sigmund.",
+    controlFault: "Control paused: resolve the machine fault shown above, then initialize and begin again.",
+    controlLive: "Control is live. Drag the XY joystick or hold a paint/table control.",
+    controlNeedsLease: "Control is read-only. Select Initialize Sigmund or Begin Painting to request control.",
+    controlNeedsSession: "Sigmund is initialized. Select Begin Painting to enable the movement controls.",
     initialize: "Initialize Sigmund", initializeConfirm: "Sigmund may move. Clear the E-stop, home XY if needed, and move to Center?",
     diagnostics: "Diagnostics", enablePhoneTilt: "Enable Phone Tilt", endPainting: "End Painting",
     holdCcw: "Hold CCW", holdCw: "Hold CW", holdDispense: "Hold Dispense", language: "Deutsch",
@@ -18,6 +23,11 @@ export const mobileCopy = Object.freeze({
   }),
   de: Object.freeze({
     beginPainting: "Malen beginnen", clearStop: "Stopp aufheben", controlsLive: "Steuerung aktiv",
+    controlDisconnected: "Steuerung nicht verfügbar: Das Handy ist nicht mit Sigmund verbunden.",
+    controlFault: "Steuerung pausiert: Den oben angezeigten Maschinenfehler beheben, dann erneut initialisieren und starten.",
+    controlLive: "Steuerung ist aktiv. Den XY-Joystick ziehen oder eine Farb-/Tischsteuerung halten.",
+    controlNeedsLease: "Steuerung ist schreibgeschützt. Sigmund initialisieren oder Malen beginnen wählen, um Steuerung anzufordern.",
+    controlNeedsSession: "Sigmund ist initialisiert. Malen beginnen wählen, um Bewegungssteuerungen zu aktivieren.",
     initialize: "Sigmund initialisieren", initializeConfirm: "Sigmund kann sich bewegen. Stopp aufheben, XY bei Bedarf referenzieren und zur Mitte fahren?",
     diagnostics: "Diagnose", enablePhoneTilt: "Handy-Neigung aktivieren", endPainting: "Malen beenden",
     holdCcw: "Gegen Uhrzeigersinn halten", holdCw: "Im Uhrzeigersinn halten", holdDispense: "Farbe ausgeben", language: "English",

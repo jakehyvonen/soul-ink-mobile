@@ -3,7 +3,6 @@
  * Usage: main.jsx renders App; runtime-config.json selects local or Studio-paired transport.
  */
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
-import { FullScreen, useFullScreenHandle } from "react-full-screen";
 import { canOperate, initialPbmState, operationLabel, pbmReducer } from "./controlState.js";
 import { mobileCopy, mobileLocale } from "./content.js";
 import { loadRuntimeConfig } from "./runtimeConfig.js";
@@ -53,7 +52,6 @@ export default function App() {
   const locale = mobileLocale();
   const copy = mobileCopy[locale];
   const orientationRef = useRef({ u_ratio: 0, v_ratio: 0 });
-  const fullscreen = useFullScreenHandle();
   const operatorReady = canOperate(state);
   useSafetyStops(client);
 
@@ -145,7 +143,6 @@ export default function App() {
         throw error;
       }
       await runOperation("painting_session_start", "painting_session_start");
-      await fullscreen.enter();
     } catch {
       client?.stopContinuous("session start failed");
     }
@@ -207,12 +204,20 @@ export default function App() {
     { id: 0, label: "Blue" }, { id: 1, label: "Red" }, { id: 2, label: "White" }, { id: 3, label: "Purple" },
   ], [state.profile]);
   const persistence = state.profile?.workflow_capabilities?.pbm?.persistence;
+  const controlStatus = state.connection !== "connected"
+    ? copy.controlDisconnected
+    : state.fault.active
+      ? copy.controlFault
+      : !state.lease.owned
+        ? copy.controlNeedsLease
+        : !state.session.active
+          ? copy.controlNeedsSession
+          : copy.controlLive;
 
   if (!config) return <main className="boot-screen"><h1>{copy.title}</h1><p>{state.notice}</p></main>;
 
   return (
-    <FullScreen handle={fullscreen}>
-      <main className="pbm-app">
+    <main className="pbm-app">
         <header>
           <div>
             <p className="eyebrow">{config.mode} · {config.machineId}</p>
@@ -239,6 +244,7 @@ export default function App() {
           </p>
         )}
         <p className="notice" role="status">{state.notice}</p>
+        <p className={`control-status${operatorReady ? " live" : " paused"}`} role="status">{controlStatus}</p>
         {state.profile?.pbm_log?.path && (
           <details className="diagnostics">
             <summary>{copy.diagnostics}</summary>
@@ -296,7 +302,6 @@ export default function App() {
             ))}
           </div>
         </section>
-      </main>
-    </FullScreen>
+    </main>
   );
 }

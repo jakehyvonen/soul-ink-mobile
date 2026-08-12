@@ -19,6 +19,22 @@ describe("PBM authoritative control state", () => {
     expect(canOperate(state)).toBe(true);
   });
 
+  it("enables controls from the Pi-confirmed painting start result", () => {
+    let state = pbmReducer(initialPbmState, { type: "client.status", status: "connected" });
+    state = pbmReducer(state, {
+      type: "lease",
+      owned_by_client: true,
+      payload: { lease: { holder: "remote:session-131:user-137", mode: "operator" } },
+    });
+    state = pbmReducer(state, {
+      type: "painting.state",
+      payload: { session: { active: true, id: "painting-139", status: "active" } },
+    });
+
+    expect(canOperate(state)).toBe(true);
+    expect(state.session).toMatchObject({ active: true, id: "painting-139" });
+  });
+
   it("recognizes the gateway's nested remote lease payload", () => {
     const state = pbmReducer(initialPbmState, {
       type: "lease",

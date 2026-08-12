@@ -31,6 +31,11 @@ function applicationState(payload, previous) {
   };
 }
 
+/** Merge one Pi-confirmed painting result without waiting for the periodic state frame. Usage: discrete painting request replies. */
+function confirmedPaintingState(payload, previous) {
+  return applicationState({ painting: payload }, previous);
+}
+
 /** Extract the first actionable machine fault from authoritative health. Usage: state event reducer. */
 function machineFault(health) {
   const devices = health?.devices || {};
@@ -70,6 +75,8 @@ export function pbmReducer(state, event) {
         ...workflow,
       };
     }
+    case "painting.state":
+      return { ...state, ...confirmedPaintingState(event.payload, state) };
     case "lease": {
       const active = event.payload?.active ?? event.payload?.lease ?? event.active ?? event.lease ?? null;
       return {

@@ -55,6 +55,16 @@ h2 { font-size: 1.07rem; }
 .status.warn { color: var(--orange); border-color: #815c36; }
 .status.muted { color: var(--muted); }
 .notice { min-height: 1.4em; color: var(--muted); font-size: 0.83rem; }
+.control-status {
+  margin-top: 7px;
+  padding: 9px 13px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  font-size: 0.83rem;
+  font-weight: 750;
+}
+.control-status.live { color: #d8ffe0; border-color: #3e8f5a; background: #163521; }
+.control-status.paused { color: #ffd5ad; border-color: #815c36; background: #3d2816; }
 .diagnostics { margin-top: 5px; color: var(--muted); font-size: 0.73rem; }
 .diagnostics code { display: block; margin-top: 5px; overflow-wrap: anywhere; color: var(--cyan); }
 .fault-banner {

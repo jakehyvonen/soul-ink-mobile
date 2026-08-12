@@ -10,6 +10,7 @@ describe("mobile content", () => {
   it("uses English on the unprefixed and Pi-local routes", () => {
     expect(mobileLocale("/mobile/")).toBe("en");
     expect(mobileCopy.en.stopAll).toBe("STOP ALL");
+    expect(mobileCopy.en.controlLive).toMatch(/^Control is live\./u);
   });
 
   it("uses draft German control text below the German route", () => {

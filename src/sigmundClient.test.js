@@ -120,10 +120,39 @@ describe("SigmundClient", () => {
     expect(heartbeat).toBeDefined();
     socket.receive({
       correlation_id: heartbeat.request_id,
-      payload: { kind: "lease.heartbeat", ok: true, result: { ok: true } },
+      payload: {
+        kind: "lease.heartbeat",
+        ok: true,
+        result: { lease: { holder: "remote:session-127:user-131", mode: "operator" }, ok: true },
+      },
       state: "accepted",
       type: "command.lifecycle",
     });
+    await vi.advanceTimersByTimeAsync(2053);
+    expect(socket.sent.filter((frame) => frame.type === "lease.heartbeat")).toHaveLength(2);
+    client.disconnect();
+  });
+
+  it("publishes Pi-confirmed painting state immediately from a discrete reply", async () => {
+    const client = createPairedClient();
+    const events = [];
+    client.subscribe((event) => events.push(event));
+    await client.connect();
+    const socket = FakeWebSocket.instances[0];
+    socket.open();
+    socket.receive({ type: "authentication.accepted", role: "controller" });
+    const pending = client.sendRequest("painting_session_start");
+    const request = socket.sent.at(-1);
+    const painting = { session: { active: true, id: "painting-137", status: "active" } };
+    socket.receive({
+      correlation_id: request.request_id,
+      payload: { kind: "painting_session_start", ok: true, result: { ok: true, painting } },
+      state: "accepted",
+      type: "command.lifecycle",
+    });
+
+    await pending;
+    expect(events).toContainEqual({ type: "painting.state", payload: painting });
     client.disconnect();
   });
 
