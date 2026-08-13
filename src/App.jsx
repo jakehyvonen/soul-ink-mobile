@@ -15,7 +15,7 @@ import {
   runTiltCheck,
   TILT_CHECK_RATIO,
 } from "./motionCheck.js";
-import { OrientationTracker } from "./orientationControl.js";
+import { accelerationAngles, OrientationTracker, requestPhoneMotionPermission } from "./orientationControl.js";
 import { SigmundClient } from "./sigmundClient.js";
 import { StudioPairing } from "./studioPairing.js";
 import { useSafetyStops } from "./useSafetyStops.js";
@@ -23,15 +23,6 @@ import { routeXyVector } from "./xyControl.js";
 import HoldControlButton from "./components/HoldControlButton.jsx";
 import PhaserGame from "./components/PhaserGame/PhaserGame.jsx";
 import StatusStrip from "./components/StatusStrip.jsx";
-
-/** Request device-orientation permission within a user gesture. Usage: Enable phone tilt button. */
-async function requestOrientationPermission() {
-  if (typeof DeviceOrientationEvent === "undefined") return false;
-  if (typeof DeviceOrientationEvent.requestPermission === "function") {
-    return (await DeviceOrientationEvent.requestPermission()) === "granted";
-  }
-  return true;
-}
 
 /** Read the current screen rotation for stable portrait/landscape axes. Usage: orientation samples. */
 function currentScreenAngle() {
@@ -65,6 +56,7 @@ export default function App() {
   const copy = mobileCopy[locale];
   const orientationRef = useRef({ u_ratio: 0, v_ratio: 0 });
   const orientationReadyRef = useRef(false);
+  const orientationSourceRef = useRef(null);
   const orientationTrackerRef = useRef(new OrientationTracker());
   const orientationDisplayAtRef = useRef(0);
   const motionCheckRef = useRef(false);
@@ -97,7 +89,14 @@ export default function App() {
       admissionProvider: pairing ? () => pairing.getAdmission() : undefined,
     });
     const unsubscribe = nextClient.subscribe((event) => {
-      if (event.type === "client.safety_stop") setTiltActive(false);
+      if (event.type === "client.safety_stop") {
+        setOrientationEnabled(false);
+        setOrientationReady(false);
+        setTiltActive(false);
+        orientationReadyRef.current = false;
+        orientationSourceRef.current = null;
+        orientationTrackerRef.current.reset();
+      }
       if (event.type === "client.control_delivery" && event.channel === "xy_joystick") {
         setXyDelivery(event.state);
       }
@@ -120,13 +119,19 @@ export default function App() {
 
   useEffect(() => {
     if (!orientationEnabled) return undefined;
-    /** Calibrate the first sample and retain smoothed relative control values. Usage: phone sensor events. */
-    const updateOrientation = (event) => {
-      const sample = orientationTrackerRef.current.update(event, currentScreenAngle());
+    /** Calibrate the first valid sensor sample and retain relative control values. Usage: phone sensor events. */
+    const updatePhoneSensor = (event, source) => {
+      if (orientationSourceRef.current && orientationSourceRef.current !== source) return;
+      const angles = source === "motion" ? accelerationAngles(event) : event;
+      if (!angles) return;
+      const sample = orientationTrackerRef.current.update(angles, currentScreenAngle());
+      if (!sample.calibrated) return;
+      orientationSourceRef.current = source;
       orientationRef.current = sample.ratios;
       if (!orientationReadyRef.current && sample.calibrated) {
         orientationReadyRef.current = true;
         setOrientationReady(true);
+        setTiltActive(true);
       }
       const now = performance.now();
       if (now - orientationDisplayAtRef.current >= 157) {
@@ -134,9 +139,30 @@ export default function App() {
         setTiltPose(sample.degrees);
       }
     };
+    /** Route one orientation event into the shared tilt tracker. Usage: browser event listener. */
+    const updateOrientation = (event) => updatePhoneSensor(event, "orientation");
+    /** Route one gravity event into the shared tilt tracker. Usage: browser event listener. */
+    const updateMotion = (event) => updatePhoneSensor(event, "motion");
     window.addEventListener("deviceorientation", updateOrientation, true);
-    return () => window.removeEventListener("deviceorientation", updateOrientation, true);
+    window.addEventListener("devicemotion", updateMotion, true);
+    return () => {
+      window.removeEventListener("deviceorientation", updateOrientation, true);
+      window.removeEventListener("devicemotion", updateMotion, true);
+    };
   }, [orientationEnabled]);
+
+  useEffect(() => {
+    if (!orientationEnabled || orientationReady) return undefined;
+    const timer = setTimeout(() => {
+      setOrientationEnabled(false);
+      setTiltActive(false);
+      orientationSourceRef.current = null;
+      orientationTrackerRef.current.reset();
+      client?.clearControl("table_tilt");
+      dispatch({ type: "client.error", error: copy.phoneSensorTimeout });
+    }, 5003);
+    return () => clearTimeout(timer);
+  }, [client, copy.phoneSensorTimeout, orientationEnabled, orientationReady]);
 
   useEffect(() => {
     if (!tiltActive || !client || !operatorReady) return undefined;
@@ -206,7 +232,7 @@ export default function App() {
 
   /** Stop outputs, finish persistence, and release the lease in server order. Usage: End Painting. */
   async function endPainting() {
-    setTiltActive(false);
+    disablePhoneTilting();
     client.stopContinuous("session end");
     try {
       await runOperation("painting_session_end", "painting_session_end");
@@ -216,32 +242,40 @@ export default function App() {
     }
   }
 
-  /** Enable phone orientation and make the next sample the neutral pose. Usage: explicit calibration button. */
-  async function enableOrientation() {
+  /** Restore neutral browser tilt state and stop its continuous output. Usage: disable, safety, and leveling. */
+  function disablePhoneTilting() {
+    setOrientationEnabled(false);
+    setOrientationReady(false);
+    setTiltActive(false);
+    orientationTrackerRef.current.reset();
+    orientationRef.current = { u_ratio: 0, v_ratio: 0 };
+    orientationReadyRef.current = false;
+    orientationSourceRef.current = null;
+    orientationDisplayAtRef.current = 0;
+    setTiltPose({ u: 0, v: 0 });
+    client?.clearControl("table_tilt");
+  }
+
+  /** Toggle phone tilt and use the first fresh sensor sample as neutral. Usage: Enable/Disable Tilting. */
+  async function togglePhoneTilting() {
+    if (orientationEnabled) {
+      disablePhoneTilting();
+      return;
+    }
     try {
-      const allowed = orientationEnabled || await requestOrientationPermission();
+      const allowed = await requestPhoneMotionPermission();
       if (!allowed) throw new Error(copy.phoneTiltUnavailable);
-      setTiltActive(false);
-      client?.clearControl("table_tilt");
       orientationTrackerRef.current.reset();
       orientationRef.current = { u_ratio: 0, v_ratio: 0 };
       orientationReadyRef.current = false;
+      orientationSourceRef.current = null;
       orientationDisplayAtRef.current = 0;
       setOrientationReady(false);
+      setTiltActive(false);
       setTiltPose({ u: 0, v: 0 });
       setOrientationEnabled(true);
     } catch (error) {
       dispatch({ type: "client.error", error: error.message });
-    }
-  }
-
-  /** Start or stop phone-controlled tilt without changing physical limits. Usage: tilt task button. */
-  function toggleTilt() {
-    if (tiltActive) {
-      setTiltActive(false);
-      client.clearControl("table_tilt");
-    } else if (orientationEnabled && orientationReady && operatorReady) {
-      setTiltActive(true);
     }
   }
 
@@ -393,7 +427,7 @@ export default function App() {
           <section className="controls-card" aria-label="Continuous controls">
             <div className="section-heading"><h2>{copy.paintTable}</h2><span>{copy.releaseStops}</span></div>
             <div className="table-control-status" role="status" aria-live="polite">
-              <span>{copy.phoneTilt}: {orientationReady ? `U ${tiltPose.u.toFixed(1)}° · V ${tiltPose.v.toFixed(1)}°` : copy.notCalibrated}</span>
+              <span>{copy.phoneTilt}: {orientationReady ? `U ${tiltPose.u.toFixed(1)}° · V ${tiltPose.v.toFixed(1)}°` : orientationEnabled ? copy.phoneTiltWaiting : copy.phoneTiltOff}</span>
               <span>{copy.tilt}: {copy.delivery[tableDelivery.tilt] || tableDelivery.tilt}</span>
               <span>{copy.rotation}: {copy.delivery[tableDelivery.rotation] || tableDelivery.rotation}</span>
             </div>
@@ -403,9 +437,8 @@ export default function App() {
               <HoldControlButton disabled={!operatorReady} onStart={() => client.setControl("table_rotation", { velocity_ratio: -1 })} onStop={() => client.clearControl("table_rotation")}>{copy.holdCcw}</HoldControlButton>
               <button type="button" className="control-button stop" disabled={!operatorReady} onClick={() => client.stopControl("table_rotation")}>{copy.stopRotation}</button>
               <HoldControlButton disabled={!operatorReady} onStart={() => client.setControl("table_rotation", { velocity_ratio: 1 })} onStop={() => client.clearControl("table_rotation")}>{copy.holdCw}</HoldControlButton>
-              <button type="button" className={`control-button ${tiltActive ? "record" : "accent"}`} disabled={!operatorReady || !orientationReady} onClick={toggleTilt}>{tiltActive ? copy.stopTilt : copy.usePhoneTilt}</button>
-              <TaskButton state={state} operation="table_level" label={copy.level} onClick={() => { setTiltActive(false); runOperation("table_level", "control.level").catch(() => undefined); }} disabled={!operatorReady} />
-              <button type="button" className="control-button neutral" onClick={enableOrientation}>{orientationReady ? copy.recalibratePhone : copy.enablePhoneTilt}</button>
+              <button type="button" className={`control-button ${orientationEnabled ? "record" : "accent"}`} disabled={!operatorReady} onClick={togglePhoneTilting}>{orientationEnabled ? copy.disableTilting : copy.enableTilting}</button>
+              <TaskButton state={state} operation="table_level" label={copy.level} onClick={() => { disablePhoneTilting(); runOperation("table_level", "control.level").catch(() => undefined); }} disabled={!operatorReady} />
             </div>
           </section>
         </div>

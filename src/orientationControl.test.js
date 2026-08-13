@@ -1,9 +1,15 @@
 /**
- * Descriptor: deterministic coverage for calibrated phone-orientation tilt mapping.
- * Usage: Vitest verifies neutral calibration, limits, smoothing, deadband, and landscape axes.
+ * Descriptor: deterministic coverage for phone permission and calibrated tilt mapping.
+ * Usage: Vitest verifies permissions, sensor fallback, neutral calibration, limits, smoothing, and axes.
  */
 import { describe, expect, it } from "vitest";
-import { OrientationTracker, screenRelativeAngles, TILT_RANGE_DEGREES } from "./orientationControl.js";
+import {
+  accelerationAngles,
+  OrientationTracker,
+  requestPhoneMotionPermission,
+  screenRelativeAngles,
+  TILT_RANGE_DEGREES,
+} from "./orientationControl.js";
 
 /** Feed one steady sample enough times for the smoothing filter to settle. Usage: mapping assertions. */
 function settle(tracker, event, screenAngle = 0) {
@@ -17,6 +23,45 @@ describe("screenRelativeAngles", () => {
     expect(screenRelativeAngles({ beta: 11, gamma: 7 }, 0)).toEqual({ u: 11, v: 7 });
     expect(screenRelativeAngles({ beta: 11, gamma: 7 }, 90)).toEqual({ u: -7, v: 11 });
     expect(screenRelativeAngles({ beta: 11, gamma: 7 }, 270)).toEqual({ u: 7, v: -11 });
+  });
+});
+
+describe("requestPhoneMotionPermission", () => {
+  it("requests both protected sensor APIs in the same button gesture", async () => {
+    const calls = [];
+    const allowed = await requestPhoneMotionPermission({
+      DeviceOrientationEvent: { requestPermission: () => { calls.push("orientation"); return Promise.resolve("denied"); } },
+      DeviceMotionEvent: { requestPermission: () => { calls.push("motion"); return Promise.resolve("granted"); } },
+    });
+    expect(calls).toEqual(["orientation", "motion"]);
+    expect(allowed).toBe(true);
+  });
+
+  it("accepts implicit browser access and rejects missing or denied sensors", async () => {
+    expect(await requestPhoneMotionPermission({ DeviceOrientationEvent: function OrientationEvent() {} })).toBe(true);
+    expect(await requestPhoneMotionPermission({})).toBe(false);
+    expect(await requestPhoneMotionPermission({
+      DeviceOrientationEvent: { requestPermission: () => Promise.resolve("denied") },
+      DeviceMotionEvent: { requestPermission: () => Promise.resolve("denied") },
+    })).toBe(false);
+  });
+});
+
+describe("accelerationAngles", () => {
+  it("converts gravity samples into orientation-compatible relative axes", () => {
+    const level = accelerationAngles({ accelerationIncludingGravity: { x: 0, y: 0, z: 9.81 } });
+    expect(level).toEqual({ beta: -0, gamma: 0 });
+    const radians = 11 * Math.PI / 180;
+    const tilted = accelerationAngles({
+      accelerationIncludingGravity: { x: Math.tan(radians) * 9.81, y: -Math.tan(radians) * 9.81, z: 9.81 },
+    });
+    expect(tilted.beta).toBeCloseTo(10.8, 1);
+    expect(tilted.gamma).toBeCloseTo(10.8, 1);
+  });
+
+  it("rejects empty and zero-gravity samples", () => {
+    expect(accelerationAngles({})).toBeNull();
+    expect(accelerationAngles({ accelerationIncludingGravity: { x: 0, y: 0, z: 0 } })).toBeNull();
   });
 });
 

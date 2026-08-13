@@ -1,11 +1,29 @@
 /**
- * Descriptor: calibrated, screen-aware phone orientation mapping for substrate tilt.
- * Usage: App feeds deviceorientation samples through OrientationTracker before sending U/V ratios.
+ * Descriptor: permission-aware, calibrated phone sensor mapping for substrate tilt.
+ * Usage: App requests motion access and feeds orientation or gravity samples through OrientationTracker.
  */
 
 export const TILT_RANGE_DEGREES = 31;
 export const TILT_DEADZONE_DEGREES = 0.53;
 export const TILT_FILTER_WEIGHT = 0.31;
+
+/** Request every available phone-motion permission inside one user gesture. Usage: Enable Tilting. */
+export async function requestPhoneMotionPermission(environment = globalThis) {
+  const sensorApis = [environment?.DeviceOrientationEvent, environment?.DeviceMotionEvent].filter(Boolean);
+  if (sensorApis.length === 0) return false;
+
+  const decisions = sensorApis.map((sensorApi) => {
+    if (typeof sensorApi.requestPermission !== "function") return Promise.resolve(true);
+    try {
+      return Promise.resolve(sensorApi.requestPermission())
+        .then((decision) => decision === "granted")
+        .catch(() => false);
+    } catch {
+      return Promise.resolve(false);
+    }
+  });
+  return (await Promise.all(decisions)).some(Boolean);
+}
 
 /** Clamp one finite value into an inclusive range. Usage: angle and ratio normalization. */
 function clamp(value, minimum, maximum) {
@@ -28,6 +46,21 @@ function normalizeScreenAngle(screenAngle) {
 function sampleIsUsable(event) {
   return event?.beta !== null && event?.gamma !== null
     && Number.isFinite(Number(event?.beta)) && Number.isFinite(Number(event?.gamma));
+}
+
+/** Convert gravity-inclusive acceleration into beta/gamma-style angles. Usage: devicemotion fallback. */
+export function accelerationAngles(event) {
+  const acceleration = event?.accelerationIncludingGravity;
+  const x = Number(acceleration?.x);
+  const y = Number(acceleration?.y);
+  const z = Number(acceleration?.z);
+  if (![x, y, z].every(Number.isFinite)) return null;
+  if (Math.hypot(x, y, z) < TILT_DEADZONE_DEGREES) return null;
+  const degrees = 180 / Math.PI;
+  return Object.freeze({
+    beta: Math.atan2(-y, Math.hypot(x, z)) * degrees,
+    gamma: Math.atan2(x, Math.hypot(y, z)) * degrees,
+  });
 }
 
 /** Rotate beta/gamma into stable screen-relative U/V axes. Usage: portrait and landscape samples. */
@@ -57,7 +90,7 @@ export class OrientationTracker {
     this.reset();
   }
 
-  /** Forget the baseline and restore neutral output. Usage: Enable/Recalibrate Phone. */
+  /** Forget the baseline and restore neutral output. Usage: Enable or disable tilting. */
   reset() {
     this.baseline = null;
     this.screenAngle = 0;
@@ -73,7 +106,7 @@ export class OrientationTracker {
     return this.snapshot();
   }
 
-  /** Produce a smoothed ratio relative to the calibrated phone pose. Usage: deviceorientation listener. */
+  /** Produce a smoothed ratio relative to the calibrated phone pose. Usage: phone sensor listener. */
   update(event, screenAngle = 0) {
     if (!sampleIsUsable(event)) return this.snapshot();
     const normalizedAngle = normalizeScreenAngle(screenAngle);
