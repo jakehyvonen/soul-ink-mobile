@@ -176,6 +176,46 @@ h2 { font-size: 1.07rem; }
 .sensor-dialog-actions { display: flex; gap: 11px; margin-top: 17px; }
 .sensor-dialog-actions > * { flex: 1 1 0; }
 
+/* Usage: hide this fallback unless an active painting session remains in portrait. */
+.landscape-required-screen { display: none; }
+
+@media (orientation: portrait) {
+  .pbm-app.painting-active {
+    height: 100dvh;
+    overflow: hidden;
+    pointer-events: none;
+    visibility: hidden;
+  }
+
+  .landscape-required-screen {
+    position: fixed;
+    z-index: 131;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: max(17px, env(safe-area-inset-top)) max(17px, env(safe-area-inset-right)) max(17px, env(safe-area-inset-bottom)) max(17px, env(safe-area-inset-left));
+    background: radial-gradient(circle at top, #173541, #070d11 67%);
+    color: var(--text);
+  }
+
+  .landscape-required-card {
+    width: min(100%, 431px);
+    text-align: center;
+  }
+
+  .landscape-required-icon {
+    display: block;
+    color: var(--cyan);
+    font-size: 4.13rem;
+    line-height: 1;
+  }
+
+  .landscape-required-card h2 { margin-top: 13px; font-size: 1.53rem; }
+  .landscape-required-card p { margin-top: 11px; color: var(--muted); line-height: 1.47; }
+  .landscape-required-actions { display: grid; gap: 11px; margin-top: 23px; }
+  .landscape-required-actions > * { min-height: 53px; }
+}
+
 @media (max-width: 719px) {
   .control-layout { grid-template-columns: 1fr; }
   .joystick-shell { max-height: 43dvh; }

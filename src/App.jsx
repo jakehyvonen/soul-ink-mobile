@@ -16,12 +16,13 @@ import {
   TILT_CHECK_RATIO,
 } from "./motionCheck.js";
 import { accelerationAngles, OrientationTracker, probePhoneMotionSensors } from "./orientationControl.js";
-import { stopPaintingAndExitFullscreen } from "./sessionControl.js";
+import { enterPaintingFullscreen, stopPaintingAndExitFullscreen } from "./sessionControl.js";
 import { SigmundClient } from "./sigmundClient.js";
 import { StudioPairing } from "./studioPairing.js";
 import { useSafetyStops } from "./useSafetyStops.js";
 import { routeXyVector } from "./xyControl.js";
 import HoldControlButton from "./components/HoldControlButton.jsx";
+import LandscapeRequiredScreen from "./components/LandscapeRequiredScreen.jsx";
 import PhaserGame from "./components/PhaserGame/PhaserGame.jsx";
 import StatusStrip from "./components/StatusStrip.jsx";
 import TiltPermissionDialog from "./components/TiltPermissionDialog.jsx";
@@ -219,7 +220,7 @@ export default function App() {
         throw error;
       }
       await runOperation("painting_session_start", "painting_session_start");
-      await fullscreen.enter();
+      await enterPaintingFullscreen(fullscreen);
     } catch {
       client?.stopContinuous("session start failed");
     }
@@ -285,6 +286,15 @@ export default function App() {
     orientationDisplayAtRef.current = 0;
     setTiltPose({ u: 0, v: 0 });
     client?.clearControl("table_tilt");
+  }
+
+  /** Send the authoritative all-output stop and surface transport errors. Usage: every Stop All control. */
+  async function stopAll() {
+    try {
+      await client.stopAll();
+    } catch (error) {
+      dispatch({ type: "client.error", error: error.message });
+    }
   }
 
   /** Open setup or disable active phone tilt. Usage: Enable/Disable Tilting. */
@@ -408,7 +418,7 @@ export default function App() {
 
   return (
     <FullScreen handle={fullscreen}>
-      <main className="pbm-app">
+      <main className={`pbm-app${state.session.active ? " painting-active" : ""}`}>
         <header className="app-header">
           <div className="brand-lockup">
             <h1>{copy.title}</h1>
@@ -416,7 +426,7 @@ export default function App() {
           </div>
           <div className="header-actions">
             {config.mode === "remote" && <a className="language-switch" href={locale === "de" ? "/mobile/" : "/de/mobile/"}>{copy.language}</a>}
-            <button type="button" className="stop-all" disabled={state.connection !== "connected"} onClick={() => client.stopAll().catch((error) => dispatch({ type: "client.error", error: error.message }))}>
+            <button type="button" className="stop-all" disabled={state.connection !== "connected"} onClick={stopAll}>
               {copy.stopAll}
             </button>
           </div>
@@ -524,6 +534,14 @@ export default function App() {
           </div>
         </section>
       </main>
+      {state.session.active && (
+        <LandscapeRequiredScreen
+          connected={state.connection === "connected"}
+          copy={copy}
+          onEndPainting={endPainting}
+          onStopAll={stopAll}
+        />
+      )}
       <TiltPermissionDialog
         brave={phoneSensorBrowser === "brave"}
         busy={sensorTestBusy}

@@ -5,8 +5,9 @@
 import { fireEvent, render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import HoldControlButton from "./components/HoldControlButton.jsx";
+import LandscapeRequiredScreen from "./components/LandscapeRequiredScreen.jsx";
 import StatusStrip from "./components/StatusStrip.jsx";
-import { stopPaintingAndExitFullscreen } from "./sessionControl.js";
+import { enterPaintingFullscreen, stopPaintingAndExitFullscreen } from "./sessionControl.js";
 import { routeXyVector } from "./xyControl.js";
 
 describe("continuous-control pointer safety", () => {
@@ -42,17 +43,55 @@ describe("continuous-control pointer safety", () => {
     expect(client.clearControl).toHaveBeenCalledWith("xy_joystick");
   });
 
-  it("exits fullscreen while immediately stopping continuous controls", async () => {
+  it("enters fullscreen before requesting a landscape orientation lock", async () => {
+    const order = [];
+    const fullscreen = { enter: vi.fn(async () => { order.push("fullscreen"); }) };
+    const display = { orientation: { lock: vi.fn(async () => { order.push("landscape"); }) } };
+
+    await expect(enterPaintingFullscreen(fullscreen, display)).resolves.toBe(true);
+
+    expect(display.orientation.lock).toHaveBeenCalledWith("landscape");
+    expect(order).toEqual(["fullscreen", "landscape"]);
+  });
+
+  it("keeps painting usable through the rotate gate when orientation locking is unavailable", async () => {
+    const fullscreen = { enter: vi.fn(async () => undefined) };
+    const display = { orientation: { lock: vi.fn(async () => { throw new Error("unsupported"); }) } };
+
+    await expect(enterPaintingFullscreen(fullscreen, display)).resolves.toBe(false);
+  });
+
+  it("unlocks and exits fullscreen while immediately stopping continuous controls", async () => {
     let finishExit;
     const fullscreen = { exit: vi.fn(() => new Promise((resolve) => { finishExit = resolve; })) };
     const client = { stopContinuous: vi.fn() };
+    const display = { orientation: { unlock: vi.fn() } };
 
-    const ending = stopPaintingAndExitFullscreen(fullscreen, client);
+    const ending = stopPaintingAndExitFullscreen(fullscreen, client, display);
 
     expect(fullscreen.exit).toHaveBeenCalledOnce();
     expect(client.stopContinuous).toHaveBeenCalledWith("session end");
+    expect(display.orientation.unlock).toHaveBeenCalledOnce();
     finishExit();
     await ending;
+  });
+
+  it("retains Stop All and End Painting on the portrait safety gate", () => {
+    const stopAll = vi.fn();
+    const endPainting = vi.fn();
+    const copy = {
+      endPainting: "End Painting",
+      landscapeRequiredBody: "Turn your phone sideways.",
+      landscapeRequiredTitle: "Rotate your phone",
+      stopAll: "STOP ALL",
+    };
+    const { getByRole } = render(<LandscapeRequiredScreen connected copy={copy} onEndPainting={endPainting} onStopAll={stopAll} />);
+
+    fireEvent.click(getByRole("button", { name: "STOP ALL" }));
+    fireEvent.click(getByRole("button", { name: "End Painting" }));
+
+    expect(stopAll).toHaveBeenCalledOnce();
+    expect(endPainting).toHaveBeenCalledOnce();
   });
 });
 
