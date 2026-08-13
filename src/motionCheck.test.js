@@ -3,7 +3,7 @@
  * Usage: Vitest proves query gating and mandatory XY neutralization.
  */
 import { describe, expect, it, vi } from "vitest";
-import { motionCheckRequested, runMotionCheck } from "./motionCheck.js";
+import { motionCheckRequested, runMotionCheck, runRotaryCheck, runTiltCheck } from "./motionCheck.js";
 
 describe("motionCheckRequested", () => {
   it("requires the explicit query opt-in", () => {
@@ -31,5 +31,22 @@ describe("runMotionCheck", () => {
 
     await expect(runMotionCheck(client, { x_ratio: 0, y_ratio: -0.19 }, wait)).rejects.toThrow("timer failed");
     expect(client.clearControl).toHaveBeenCalledWith("xy_joystick");
+  });
+});
+
+describe("table motion checks", () => {
+  it("sends one exact direct tilt target", () => {
+    const client = { setControl: vi.fn() };
+    runTiltCheck(client, { u_ratio: 11 / 31, v_ratio: 0 });
+    expect(client.setControl).toHaveBeenCalledWith("table_tilt", { u_ratio: 11 / 31, v_ratio: 0 });
+  });
+
+  it("always stops one bounded rotary pulse", async () => {
+    const client = { setControl: vi.fn(), clearControl: vi.fn() };
+    const wait = vi.fn().mockResolvedValue(undefined);
+    await runRotaryCheck(client, -1, wait);
+    expect(client.setControl).toHaveBeenCalledWith("table_rotation", { velocity_ratio: -0.11 });
+    expect(wait).toHaveBeenCalledOnce();
+    expect(client.clearControl).toHaveBeenCalledWith("table_rotation");
   });
 });

@@ -7,7 +7,15 @@ import { FullScreen, useFullScreenHandle } from "react-full-screen";
 import { canOperate, initialPbmState, operationIsBusy, operationLabel, pbmReducer } from "./controlState.js";
 import { mobileCopy, mobileLocale } from "./content.js";
 import { loadRuntimeConfig } from "./runtimeConfig.js";
-import { motionCheckRequested, MOTION_CHECK_RATIO, runMotionCheck } from "./motionCheck.js";
+import {
+  motionCheckRequested,
+  MOTION_CHECK_RATIO,
+  runMotionCheck,
+  runRotaryCheck,
+  runTiltCheck,
+  TILT_CHECK_RATIO,
+} from "./motionCheck.js";
+import { OrientationTracker } from "./orientationControl.js";
 import { SigmundClient } from "./sigmundClient.js";
 import { StudioPairing } from "./studioPairing.js";
 import { useSafetyStops } from "./useSafetyStops.js";
@@ -15,8 +23,6 @@ import { routeXyVector } from "./xyControl.js";
 import HoldControlButton from "./components/HoldControlButton.jsx";
 import PhaserGame from "./components/PhaserGame/PhaserGame.jsx";
 import StatusStrip from "./components/StatusStrip.jsx";
-
-const TILT_RANGE_DEGREES = 31;
 
 /** Request device-orientation permission within a user gesture. Usage: Enable phone tilt button. */
 async function requestOrientationPermission() {
@@ -27,10 +33,9 @@ async function requestOrientationPermission() {
   return true;
 }
 
-/** Convert phone beta/gamma into normalized tilt ratios only. Usage: deviceorientation listener. */
-export function orientationRatios(event) {
-  const clamp = (value) => Math.max(-1, Math.min(1, (Number(value) || 0) / TILT_RANGE_DEGREES));
-  return { u_ratio: clamp(event.beta), v_ratio: clamp(event.gamma) };
+/** Read the current screen rotation for stable portrait/landscape axes. Usage: orientation samples. */
+function currentScreenAngle() {
+  return globalThis.screen?.orientation?.angle ?? globalThis.orientation ?? 0;
 }
 
 /** Render one task button with lifecycle text. Usage: workflow, syringe, and replay grids. */
@@ -50,12 +55,18 @@ export default function App() {
   const [client, setClient] = useState(null);
   const [pairing, setPairing] = useState(null);
   const [orientationEnabled, setOrientationEnabled] = useState(false);
+  const [orientationReady, setOrientationReady] = useState(false);
   const [tiltActive, setTiltActive] = useState(false);
+  const [tiltPose, setTiltPose] = useState({ u: 0, v: 0 });
   const [xyDelivery, setXyDelivery] = useState("idle");
+  const [tableDelivery, setTableDelivery] = useState({ tilt: "idle", rotation: "idle" });
   const [motionCheckActive, setMotionCheckActive] = useState(false);
   const locale = mobileLocale();
   const copy = mobileCopy[locale];
   const orientationRef = useRef({ u_ratio: 0, v_ratio: 0 });
+  const orientationReadyRef = useRef(false);
+  const orientationTrackerRef = useRef(new OrientationTracker());
+  const orientationDisplayAtRef = useRef(0);
   const motionCheckRef = useRef(false);
   const fullscreen = useFullScreenHandle();
   const operatorReady = canOperate(state);
@@ -90,6 +101,12 @@ export default function App() {
       if (event.type === "client.control_delivery" && event.channel === "xy_joystick") {
         setXyDelivery(event.state);
       }
+      if (event.type === "client.control_delivery" && event.channel === "table_tilt") {
+        setTableDelivery((current) => ({ ...current, tilt: event.state }));
+      }
+      if (event.type === "client.control_delivery" && event.channel === "table_rotation") {
+        setTableDelivery((current) => ({ ...current, rotation: event.state }));
+      }
       dispatch({ ...event, localHolder: nextClient.holder });
     });
     setClient(nextClient);
@@ -103,7 +120,20 @@ export default function App() {
 
   useEffect(() => {
     if (!orientationEnabled) return undefined;
-    const updateOrientation = (event) => { orientationRef.current = orientationRatios(event); };
+    /** Calibrate the first sample and retain smoothed relative control values. Usage: phone sensor events. */
+    const updateOrientation = (event) => {
+      const sample = orientationTrackerRef.current.update(event, currentScreenAngle());
+      orientationRef.current = sample.ratios;
+      if (!orientationReadyRef.current && sample.calibrated) {
+        orientationReadyRef.current = true;
+        setOrientationReady(true);
+      }
+      const now = performance.now();
+      if (now - orientationDisplayAtRef.current >= 157) {
+        orientationDisplayAtRef.current = now;
+        setTiltPose(sample.degrees);
+      }
+    };
     window.addEventListener("deviceorientation", updateOrientation, true);
     return () => window.removeEventListener("deviceorientation", updateOrientation, true);
   }, [orientationEnabled]);
@@ -186,10 +216,20 @@ export default function App() {
     }
   }
 
-  /** Enable secure-context phone orientation. Usage: explicit user gesture button. */
+  /** Enable phone orientation and make the next sample the neutral pose. Usage: explicit calibration button. */
   async function enableOrientation() {
     try {
-      setOrientationEnabled(await requestOrientationPermission());
+      const allowed = orientationEnabled || await requestOrientationPermission();
+      if (!allowed) throw new Error(copy.phoneTiltUnavailable);
+      setTiltActive(false);
+      client?.clearControl("table_tilt");
+      orientationTrackerRef.current.reset();
+      orientationRef.current = { u_ratio: 0, v_ratio: 0 };
+      orientationReadyRef.current = false;
+      orientationDisplayAtRef.current = 0;
+      setOrientationReady(false);
+      setTiltPose({ u: 0, v: 0 });
+      setOrientationEnabled(true);
     } catch (error) {
       dispatch({ type: "client.error", error: error.message });
     }
@@ -200,8 +240,27 @@ export default function App() {
     if (tiltActive) {
       setTiltActive(false);
       client.clearControl("table_tilt");
-    } else if (orientationEnabled && operatorReady) {
+    } else if (orientationEnabled && orientationReady && operatorReady) {
       setTiltActive(true);
+    }
+  }
+
+  /** Send one supervised direct table pose through the Mobile channel. Usage: staging motion-check buttons. */
+  function tiltForMotionCheck(vector) {
+    if (!client || !operatorReady || motionCheckActive) return;
+    runTiltCheck(client, vector);
+  }
+
+  /** Run one bounded low-speed rotary pulse through the Mobile channel. Usage: staging motion-check buttons. */
+  async function rotateForMotionCheck(direction) {
+    if (!client || !operatorReady || motionCheckActive) return;
+    setMotionCheckActive(true);
+    try {
+      await runRotaryCheck(client, direction);
+    } catch (error) {
+      dispatch({ type: "client.error", error: error.message });
+    } finally {
+      setMotionCheckActive(false);
     }
   }
 
@@ -315,6 +374,13 @@ export default function App() {
               <button type="button" className="control-button" disabled={!operatorReady || motionCheckActive} onClick={() => jogForMotionCheck({ x_ratio: 0, y_ratio: -MOTION_CHECK_RATIO })}>Jog Y−</button>
               <button type="button" className="control-button" disabled={!operatorReady || motionCheckActive} onClick={() => jogForMotionCheck({ x_ratio: 0, y_ratio: MOTION_CHECK_RATIO })}>Jog Y+</button>
             </div>
+            <div className="button-row table-check-row">
+              <button type="button" className="control-button" disabled={!operatorReady || motionCheckActive} onClick={() => tiltForMotionCheck({ u_ratio: TILT_CHECK_RATIO, v_ratio: 0 })}>Tilt U +11°</button>
+              <button type="button" className="control-button" disabled={!operatorReady || motionCheckActive} onClick={() => tiltForMotionCheck({ u_ratio: 0, v_ratio: TILT_CHECK_RATIO })}>Tilt V +11°</button>
+              <button type="button" className="control-button" disabled={!operatorReady || motionCheckActive} onClick={() => runOperation("table_level", "control.level").catch(() => undefined)}>Level table</button>
+              <button type="button" className="control-button" disabled={!operatorReady || motionCheckActive} onClick={() => rotateForMotionCheck(-1)}>Pulse CCW</button>
+              <button type="button" className="control-button" disabled={!operatorReady || motionCheckActive} onClick={() => rotateForMotionCheck(1)}>Pulse CW</button>
+            </div>
           </section>
         )}
 
@@ -326,15 +392,20 @@ export default function App() {
 
           <section className="controls-card" aria-label="Continuous controls">
             <div className="section-heading"><h2>{copy.paintTable}</h2><span>{copy.releaseStops}</span></div>
+            <div className="table-control-status" role="status" aria-live="polite">
+              <span>{copy.phoneTilt}: {orientationReady ? `U ${tiltPose.u.toFixed(1)}° · V ${tiltPose.v.toFixed(1)}°` : copy.notCalibrated}</span>
+              <span>{copy.tilt}: {copy.delivery[tableDelivery.tilt] || tableDelivery.tilt}</span>
+              <span>{copy.rotation}: {copy.delivery[tableDelivery.rotation] || tableDelivery.rotation}</span>
+            </div>
             <div className="hold-grid">
               <HoldControlButton disabled={!operatorReady} onStart={() => client.setControl("paint_pump", { velocity_ratio: 1 })} onStop={() => client.clearControl("paint_pump")} tone="pump">{copy.holdDispense}</HoldControlButton>
               <button type="button" className="control-button stop" disabled={!operatorReady} onClick={() => client.stopControl("paint_pump")}>{copy.stopPump}</button>
               <HoldControlButton disabled={!operatorReady} onStart={() => client.setControl("table_rotation", { velocity_ratio: -1 })} onStop={() => client.clearControl("table_rotation")}>{copy.holdCcw}</HoldControlButton>
               <button type="button" className="control-button stop" disabled={!operatorReady} onClick={() => client.stopControl("table_rotation")}>{copy.stopRotation}</button>
               <HoldControlButton disabled={!operatorReady} onStart={() => client.setControl("table_rotation", { velocity_ratio: 1 })} onStop={() => client.clearControl("table_rotation")}>{copy.holdCw}</HoldControlButton>
-              <button type="button" className={`control-button ${tiltActive ? "record" : "accent"}`} disabled={!operatorReady || !orientationEnabled} onClick={toggleTilt}>{tiltActive ? copy.stopTilt : copy.usePhoneTilt}</button>
+              <button type="button" className={`control-button ${tiltActive ? "record" : "accent"}`} disabled={!operatorReady || !orientationReady} onClick={toggleTilt}>{tiltActive ? copy.stopTilt : copy.usePhoneTilt}</button>
               <TaskButton state={state} operation="table_level" label={copy.level} onClick={() => { setTiltActive(false); runOperation("table_level", "control.level").catch(() => undefined); }} disabled={!operatorReady} />
-              <button type="button" className="control-button neutral" onClick={enableOrientation}>{orientationEnabled ? copy.tiltEnabled : copy.enablePhoneTilt}</button>
+              <button type="button" className="control-button neutral" onClick={enableOrientation}>{orientationReady ? copy.recalibratePhone : copy.enablePhoneTilt}</button>
             </div>
           </section>
         </div>

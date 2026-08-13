@@ -150,6 +150,8 @@ h2 { font-size: 1.07rem; }
 /* Usage: distinguish the explicit, supervised small-motion verification from ordinary painting controls. */
 .motion-check-card { border-color: #815c36; background: #2b2118; }
 .motion-check-card p { margin-bottom: 7px; color: #ffd5ad; font-size: 0.73rem; }
+.table-check-row { margin-top: 5px; }
+.table-control-status { display: flex; flex-wrap: wrap; gap: 3px 11px; margin: -1px 0 7px; color: var(--muted); font-size: 0.69rem; }
 
 @media (orientation: landscape) and (max-height: 719px) {
   .pbm-app { padding-top: max(7px, env(safe-area-inset-top)); }
