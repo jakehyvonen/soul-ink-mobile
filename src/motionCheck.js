@@ -31,7 +31,7 @@ export async function runMotionCheck(client, vector, wait = waitForMotionWindow)
 
 /** Send one direct U/V target for physical staging verification. Usage: supervised tilt buttons. */
 export function runTiltCheck(client, vector) {
-  client.setControl("table_tilt", vector);
+  client.setControlOnce("table_tilt", vector);
 }
 
 /** Wait for one bounded low-speed rotary pulse before neutralization. Usage: supervised rotary buttons. */

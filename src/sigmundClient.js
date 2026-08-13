@@ -280,6 +280,13 @@ export class SigmundClient {
     if (firstActiveFrame) this.sendControlFrame(channel, normalized);
   }
 
+  /** Send one normalized value without retaining a sampled intent. Usage: supervised direct-pose checks. */
+  setControlOnce(channel, values) {
+    const normalized = normalizeControl(channel, values);
+    this.values.delete(channel);
+    this.sendControlFrame(channel, normalized);
+  }
+
   /** Send neutral once and stop sampling one tracked channel. Usage: pointer release and safety cleanup. */
   clearControl(channel) {
     if (!(channel in ZERO_VALUES) || !this.values.delete(channel)) return;

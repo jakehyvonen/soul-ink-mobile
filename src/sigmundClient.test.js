@@ -294,6 +294,21 @@ describe("SigmundClient", () => {
     client.disconnect();
   });
 
+  it("sends a direct pose once without retaining it in the sampler", async () => {
+    const client = createClient();
+    await client.connect();
+    const socket = FakeWebSocket.instances[0];
+    socket.open();
+
+    client.setControlOnce("table_tilt", { u_ratio: 11 / 31, v_ratio: 0 });
+    await vi.advanceTimersByTimeAsync(503);
+
+    const frames = socket.sent.filter((frame) => frame.channel === "table_tilt");
+    expect(frames).toHaveLength(1);
+    expect(frames[0].payload).toEqual({ u_ratio: 11 / 31, v_ratio: 0 });
+    client.disconnect();
+  });
+
   it("always sends an operator-requested explicit stop", async () => {
     const client = createClient();
     await client.connect();

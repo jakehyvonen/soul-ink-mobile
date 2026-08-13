@@ -36,9 +36,9 @@ describe("runMotionCheck", () => {
 
 describe("table motion checks", () => {
   it("sends one exact direct tilt target", () => {
-    const client = { setControl: vi.fn() };
+    const client = { setControlOnce: vi.fn() };
     runTiltCheck(client, { u_ratio: 11 / 31, v_ratio: 0 });
-    expect(client.setControl).toHaveBeenCalledWith("table_tilt", { u_ratio: 11 / 31, v_ratio: 0 });
+    expect(client.setControlOnce).toHaveBeenCalledWith("table_tilt", { u_ratio: 11 / 31, v_ratio: 0 });
   });
 
   it("always stops one bounded rotary pulse", async () => {

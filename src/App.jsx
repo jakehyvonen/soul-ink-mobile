@@ -367,7 +367,7 @@ export default function App() {
         {showMotionCheck && (
           <section className="workflow-card motion-check-card" aria-label="Supervised small-motion check">
             <div className="section-heading"><h2>Supervised motion check</h2><span>one small step per press</span></div>
-            <p>Keep a hand at physical Stop All. Each press uses the normal Mobile XY channel and neutralizes after 107 ms.</p>
+            <p>Keep a hand at physical Stop All. XY and rotation stop automatically; a tilt target holds only until Level.</p>
             <div className="button-row">
               <button type="button" className="control-button" disabled={!operatorReady || motionCheckActive} onClick={() => jogForMotionCheck({ x_ratio: -MOTION_CHECK_RATIO, y_ratio: 0 })}>Jog X−</button>
               <button type="button" className="control-button" disabled={!operatorReady || motionCheckActive} onClick={() => jogForMotionCheck({ x_ratio: MOTION_CHECK_RATIO, y_ratio: 0 })}>Jog X+</button>
