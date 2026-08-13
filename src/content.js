@@ -13,7 +13,7 @@ const deliveryCopy = Object.freeze({
 
 export const mobileCopy = Object.freeze({
   en: Object.freeze({
-    beginPainting: "Begin Painting", clearStop: "Clear Stop", controlsLive: "controls live",
+    beginPainting: "Begin Painting", cancel: "Cancel", clearStop: "Clear Stop", continueAndSetNeutral: "Continue & Set Neutral", controlsLive: "controls live",
     controlDisconnected: "Control unavailable: the phone is disconnected from Sigmund.",
     controlFault: "Control paused: resolve the machine fault shown above, then initialize and begin again.",
     controlLive: "Control is live. Drag the XY joystick or hold a paint/table control.",
@@ -30,12 +30,14 @@ export const mobileCopy = Object.freeze({
     rotation: "Rotation", stopAll: "STOP ALL", stopMotif: "Stop Motif", stopPump: "Stop Pump", stopRotation: "Stop Rotation",
     status: Object.freeze({ health: "Health", label: "Sigmund status", lease: "Lease", link: "Link", readOnly: "read-only", ready: "Sigmund ready", recording: "Recording motif", session: "Session" }),
     syringesReplay: "Syringes and replay", tilt: "Tilt", tiltEnabled: "Phone calibrated",
+    tiltDialogBody: "Hold your phone at the angle you want to use as level. Continuing requests motion access if your browser requires it, then uses the phone's current position as neutral.",
+    tiltDialogNote: "Tilting remains active only until you select Disable Tilting, Level, End Painting, or Stop All.", tiltDialogTitle: "Enable phone tilting?",
     title: "Soul Ink Mobile", waitsConfirmation: "waits for confirmation", xyJoystick: "XY joystick",
     xyDelivery: xyDeliveryCopy,
     delivery: deliveryCopy,
   }),
   de: Object.freeze({
-    beginPainting: "Malen beginnen", clearStop: "Stopp aufheben", controlsLive: "Steuerung aktiv",
+    beginPainting: "Malen beginnen", cancel: "Abbrechen", clearStop: "Stopp aufheben", continueAndSetNeutral: "Weiter und Neutralpunkt setzen", controlsLive: "Steuerung aktiv",
     controlDisconnected: "Steuerung nicht verfügbar: Das Handy ist nicht mit Sigmund verbunden.",
     controlFault: "Steuerung pausiert: Den oben angezeigten Maschinenfehler beheben, dann erneut initialisieren und starten.",
     controlLive: "Steuerung ist aktiv. Den XY-Joystick ziehen oder eine Farb-/Tischsteuerung halten.",
@@ -52,6 +54,8 @@ export const mobileCopy = Object.freeze({
     rotation: "Drehung", stopAll: "ALLES STOPPEN", stopMotif: "Motiv stoppen", stopPump: "Pumpe stoppen", stopRotation: "Drehung stoppen",
     status: Object.freeze({ health: "Zustand", label: "Sigmund-Status", lease: "Steuerung", link: "Verbindung", readOnly: "nur Anzeige", ready: "Sigmund bereit", recording: "Motivaufnahme", session: "Session" }),
     syringesReplay: "Spritzen und Wiedergabe", tilt: "Neigung", tiltEnabled: "Handy kalibriert",
+    tiltDialogBody: "Das Handy in dem Winkel halten, der als waagerecht gelten soll. Beim Fortfahren wird der Bewegungszugriff angefordert, falls der Browser ihn verlangt, und die aktuelle Position als Neutralpunkt verwendet.",
+    tiltDialogNote: "Die Neigungssteuerung bleibt nur aktiv, bis Neigung deaktivieren, Ausrichten, Malen beenden oder Alles stoppen gewählt wird.", tiltDialogTitle: "Handy-Neigung aktivieren?",
     title: "Soul Ink Mobile", waitsConfirmation: "wartet auf Bestätigung", xyJoystick: "XY-Joystick",
     xyDelivery: xyDeliveryCopy,
     delivery: deliveryCopy,

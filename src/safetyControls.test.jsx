@@ -6,6 +6,7 @@ import { fireEvent, render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import HoldControlButton from "./components/HoldControlButton.jsx";
 import StatusStrip from "./components/StatusStrip.jsx";
+import { stopPaintingAndExitFullscreen } from "./sessionControl.js";
 import { routeXyVector } from "./xyControl.js";
 
 describe("continuous-control pointer safety", () => {
@@ -39,6 +40,19 @@ describe("continuous-control pointer safety", () => {
     expect(client.setControl).toHaveBeenCalledWith("xy_joystick", { x_ratio: 0.5, y_ratio: -0.25 });
     expect(client.clearControl).toHaveBeenCalledOnce();
     expect(client.clearControl).toHaveBeenCalledWith("xy_joystick");
+  });
+
+  it("exits fullscreen while immediately stopping continuous controls", async () => {
+    let finishExit;
+    const fullscreen = { exit: vi.fn(() => new Promise((resolve) => { finishExit = resolve; })) };
+    const client = { stopContinuous: vi.fn() };
+
+    const ending = stopPaintingAndExitFullscreen(fullscreen, client);
+
+    expect(fullscreen.exit).toHaveBeenCalledOnce();
+    expect(client.stopContinuous).toHaveBeenCalledWith("session end");
+    finishExit();
+    await ending;
   });
 });
 

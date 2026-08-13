@@ -140,6 +140,33 @@ h2 { font-size: 1.07rem; }
 .boot-screen { min-height: 100dvh; display: grid; place-content: center; gap: 13px; padding: 23px; text-align: center; background: #0a1015; color: #edf8fa; }
 .boot-screen button { min-height: 47px; border: 1px solid var(--cyan); border-radius: 11px; background: #15272d; color: var(--cyan); }
 
+/* Usage: keep the phone-sensor explanation visible inside browser fullscreen before permission is requested. */
+.sensor-dialog-backdrop {
+  position: fixed;
+  z-index: 101;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: max(17px, env(safe-area-inset-top)) max(17px, env(safe-area-inset-right)) max(17px, env(safe-area-inset-bottom)) max(17px, env(safe-area-inset-left));
+  background: #05090dcc;
+  backdrop-filter: blur(7px);
+}
+
+.sensor-dialog {
+  width: min(100%, 431px);
+  padding: 19px;
+  border: 1px solid #398b89;
+  border-radius: 17px;
+  background: linear-gradient(145deg, #1b2a34, #101a20);
+  box-shadow: 0 23px 67px #000b;
+}
+
+.sensor-dialog h2 { color: var(--cyan); font-size: 1.23rem; }
+.sensor-dialog p { margin-top: 11px; color: #d7e5e9; line-height: 1.43; }
+.sensor-dialog .sensor-dialog-note { color: var(--muted); font-size: 0.79rem; }
+.sensor-dialog-actions { display: flex; gap: 11px; margin-top: 17px; }
+.sensor-dialog-actions > * { flex: 1 1 0; }
+
 @media (max-width: 719px) {
   .control-layout { grid-template-columns: 1fr; }
   .joystick-shell { max-height: 43dvh; }

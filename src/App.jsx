@@ -16,6 +16,7 @@ import {
   TILT_CHECK_RATIO,
 } from "./motionCheck.js";
 import { accelerationAngles, OrientationTracker, requestPhoneMotionPermission } from "./orientationControl.js";
+import { stopPaintingAndExitFullscreen } from "./sessionControl.js";
 import { SigmundClient } from "./sigmundClient.js";
 import { StudioPairing } from "./studioPairing.js";
 import { useSafetyStops } from "./useSafetyStops.js";
@@ -23,6 +24,7 @@ import { routeXyVector } from "./xyControl.js";
 import HoldControlButton from "./components/HoldControlButton.jsx";
 import PhaserGame from "./components/PhaserGame/PhaserGame.jsx";
 import StatusStrip from "./components/StatusStrip.jsx";
+import TiltPermissionDialog from "./components/TiltPermissionDialog.jsx";
 
 /** Read the current screen rotation for stable portrait/landscape axes. Usage: orientation samples. */
 function currentScreenAngle() {
@@ -47,6 +49,7 @@ export default function App() {
   const [pairing, setPairing] = useState(null);
   const [orientationEnabled, setOrientationEnabled] = useState(false);
   const [orientationReady, setOrientationReady] = useState(false);
+  const [tiltDialogOpen, setTiltDialogOpen] = useState(false);
   const [tiltActive, setTiltActive] = useState(false);
   const [tiltPose, setTiltPose] = useState({ u: 0, v: 0 });
   const [xyDelivery, setXyDelivery] = useState("idle");
@@ -90,6 +93,7 @@ export default function App() {
     });
     const unsubscribe = nextClient.subscribe((event) => {
       if (event.type === "client.safety_stop") {
+        setTiltDialogOpen(false);
         setOrientationEnabled(false);
         setOrientationReady(false);
         setTiltActive(false);
@@ -233,7 +237,7 @@ export default function App() {
   /** Stop outputs, finish persistence, and release the lease in server order. Usage: End Painting. */
   async function endPainting() {
     disablePhoneTilting();
-    client.stopContinuous("session end");
+    await stopPaintingAndExitFullscreen(fullscreen, client);
     try {
       await runOperation("painting_session_end", "painting_session_end");
       await runOperation("lease_release", "lease.release");
@@ -244,6 +248,7 @@ export default function App() {
 
   /** Restore neutral browser tilt state and stop its continuous output. Usage: disable, safety, and leveling. */
   function disablePhoneTilting() {
+    setTiltDialogOpen(false);
     setOrientationEnabled(false);
     setOrientationReady(false);
     setTiltActive(false);
@@ -256,12 +261,18 @@ export default function App() {
     client?.clearControl("table_tilt");
   }
 
-  /** Toggle phone tilt and use the first fresh sensor sample as neutral. Usage: Enable/Disable Tilting. */
-  async function togglePhoneTilting() {
+  /** Open setup or disable active phone tilt. Usage: Enable/Disable Tilting. */
+  function togglePhoneTilting() {
     if (orientationEnabled) {
       disablePhoneTilting();
       return;
     }
+    setTiltDialogOpen(true);
+  }
+
+  /** Request sensor access and use the first fresh sample as neutral. Usage: dialog Continue action. */
+  async function enablePhoneTilting() {
+    setTiltDialogOpen(false);
     try {
       const allowed = await requestPhoneMotionPermission();
       if (!allowed) throw new Error(copy.phoneTiltUnavailable);
@@ -455,6 +466,12 @@ export default function App() {
           </div>
         </section>
       </main>
+      <TiltPermissionDialog
+        copy={copy}
+        open={tiltDialogOpen}
+        onCancel={() => setTiltDialogOpen(false)}
+        onContinue={enablePhoneTilting}
+      />
     </FullScreen>
   );
 }
