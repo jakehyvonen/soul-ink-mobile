@@ -6,6 +6,7 @@
 export const TILT_RANGE_DEGREES = 31;
 export const TILT_DEADZONE_DEGREES = 0.53;
 export const TILT_FILTER_WEIGHT = 0.31;
+export const SENSOR_PROBE_TIMEOUT_MS = 2053;
 
 /** Request every available phone-motion permission inside one user gesture. Usage: Enable Tilting. */
 export async function requestPhoneMotionPermission(environment = globalThis) {
@@ -23,6 +24,15 @@ export async function requestPhoneMotionPermission(environment = globalThis) {
     }
   });
   return (await Promise.all(decisions)).some(Boolean);
+}
+
+/** Detect Brave without relying on its Chromium user agent. Usage: blocked-sensor guidance. */
+export async function browserIsBrave(environment = globalThis) {
+  try {
+    return Boolean(await environment?.navigator?.brave?.isBrave?.());
+  } catch {
+    return false;
+  }
 }
 
 /** Clamp one finite value into an inclusive range. Usage: angle and ratio normalization. */
@@ -61,6 +71,45 @@ export function accelerationAngles(event) {
     beta: Math.atan2(-y, Math.hypot(x, z)) * degrees,
     gamma: Math.atan2(x, Math.hypot(y, z)) * degrees,
   });
+}
+
+/** Wait for one non-empty orientation or gravity reading. Usage: pre-fullscreen sensor checks. */
+export function waitForPhoneMotionSample(environment = globalThis, timeoutMs = SENSOR_PROBE_TIMEOUT_MS) {
+  if (typeof environment?.addEventListener !== "function") return Promise.resolve(false);
+  return new Promise((resolve) => {
+    let settled = false;
+    /** Remove probe listeners and resolve exactly once. Usage: sample or timeout completion. */
+    const finish = (available) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      environment.removeEventListener("deviceorientation", handleOrientation, true);
+      environment.removeEventListener("devicemotion", handleMotion, true);
+      resolve(available);
+    };
+    /** Accept one finite orientation event. Usage: deviceorientation probe listener. */
+    const handleOrientation = (event) => {
+      if (sampleIsUsable(event)) finish(true);
+    };
+    /** Accept one finite gravity-inclusive motion event. Usage: devicemotion probe listener. */
+    const handleMotion = (event) => {
+      if (accelerationAngles(event)) finish(true);
+    };
+    const timer = setTimeout(() => finish(false), timeoutMs);
+    environment.addEventListener("deviceorientation", handleOrientation, true);
+    environment.addEventListener("devicemotion", handleMotion, true);
+  });
+}
+
+/** Request access and distinguish usable readings from Brave's silent empty events. Usage: Initialize and Enable Tilting. */
+export async function probePhoneMotionSensors(environment = globalThis, timeoutMs = SENSOR_PROBE_TIMEOUT_MS) {
+  const permissionRequest = requestPhoneMotionPermission(environment);
+  const braveCheck = browserIsBrave(environment);
+  const allowed = await permissionRequest;
+  const brave = await braveCheck;
+  if (!allowed) return Object.freeze({ available: false, brave, reason: "denied" });
+  const available = await waitForPhoneMotionSample(environment, timeoutMs);
+  return Object.freeze({ available, brave, reason: available ? "available" : "no_readings" });
 }
 
 /** Rotate beta/gamma into stable screen-relative U/V axes. Usage: portrait and landscape samples. */

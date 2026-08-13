@@ -5,10 +5,13 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
+import PhoneSensorCheck, { sensorCheckRequested } from "./components/PhoneSensorCheck.jsx";
 import "./styles.css";
+
+const RootExperience = sensorCheckRequested() ? PhoneSensorCheck : App;
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <App />
+    <RootExperience />
   </React.StrictMode>,
 );

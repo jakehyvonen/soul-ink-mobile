@@ -15,7 +15,7 @@ import {
   runTiltCheck,
   TILT_CHECK_RATIO,
 } from "./motionCheck.js";
-import { accelerationAngles, OrientationTracker, requestPhoneMotionPermission } from "./orientationControl.js";
+import { accelerationAngles, OrientationTracker, probePhoneMotionSensors } from "./orientationControl.js";
 import { stopPaintingAndExitFullscreen } from "./sessionControl.js";
 import { SigmundClient } from "./sigmundClient.js";
 import { StudioPairing } from "./studioPairing.js";
@@ -49,7 +49,11 @@ export default function App() {
   const [pairing, setPairing] = useState(null);
   const [orientationEnabled, setOrientationEnabled] = useState(false);
   const [orientationReady, setOrientationReady] = useState(false);
-  const [tiltDialogOpen, setTiltDialogOpen] = useState(false);
+  const [tiltDialogMode, setTiltDialogMode] = useState(null);
+  const [phoneSensorState, setPhoneSensorState] = useState("unknown");
+  const [phoneSensorBrowser, setPhoneSensorBrowser] = useState("other");
+  const [sensorTestBusy, setSensorTestBusy] = useState(false);
+  const [initializeAfterSensorTest, setInitializeAfterSensorTest] = useState(false);
   const [tiltActive, setTiltActive] = useState(false);
   const [tiltPose, setTiltPose] = useState({ u: 0, v: 0 });
   const [xyDelivery, setXyDelivery] = useState("idle");
@@ -93,7 +97,7 @@ export default function App() {
     });
     const unsubscribe = nextClient.subscribe((event) => {
       if (event.type === "client.safety_stop") {
-        setTiltDialogOpen(false);
+        setTiltDialogMode(null);
         setOrientationEnabled(false);
         setOrientationReady(false);
         setTiltActive(false);
@@ -160,6 +164,8 @@ export default function App() {
     const timer = setTimeout(() => {
       setOrientationEnabled(false);
       setTiltActive(false);
+      setPhoneSensorState("blocked");
+      setTiltDialogMode("blocked");
       orientationSourceRef.current = null;
       orientationTrackerRef.current.reset();
       client?.clearControl("table_tilt");
@@ -219,14 +225,34 @@ export default function App() {
     }
   }
 
-  /** Acquire control and run the confirmed Pi-owned recovery and centering sequence. Usage: Initialize Sigmund. */
-  async function initializeMachine() {
+  /** Acquire control and run the confirmed Pi-owned recovery and centering sequence. Usage: verified initialization. */
+  async function runMachineInitialization() {
     try {
       await runOperation("lease", "lease.acquire", { mode: "operator" });
       await runOperation("machine_initialize", "machine.initialize");
     } catch {
       client?.stopContinuous("initialization failed");
     }
+  }
+
+  /** Check sensors before fullscreen, then initialize or show exact recovery steps. Usage: Initialize Sigmund. */
+  async function initializeMachine() {
+    if (sensorTestBusy) return;
+    if (phoneSensorState === "available") {
+      await runMachineInitialization();
+      return;
+    }
+    setSensorTestBusy(true);
+    const result = await probePhoneMotionSensors();
+    setSensorTestBusy(false);
+    setPhoneSensorBrowser(result.brave ? "brave" : "other");
+    setPhoneSensorState(result.available ? "available" : "blocked");
+    if (!result.available) {
+      setInitializeAfterSensorTest(true);
+      setTiltDialogMode("blocked");
+      return;
+    }
+    await runMachineInitialization();
   }
 
   /** Clear a verified latched Pico stop without starting a session or output. Usage: explicit Clear Stop button. */
@@ -248,7 +274,7 @@ export default function App() {
 
   /** Restore neutral browser tilt state and stop its continuous output. Usage: disable, safety, and leveling. */
   function disablePhoneTilting() {
-    setTiltDialogOpen(false);
+    setTiltDialogMode(null);
     setOrientationEnabled(false);
     setOrientationReady(false);
     setTiltActive(false);
@@ -267,15 +293,22 @@ export default function App() {
       disablePhoneTilting();
       return;
     }
-    setTiltDialogOpen(true);
+    setTiltDialogMode(phoneSensorState === "blocked" ? "blocked" : "setup");
   }
 
   /** Request sensor access and use the first fresh sample as neutral. Usage: dialog Continue action. */
   async function enablePhoneTilting() {
-    setTiltDialogOpen(false);
+    if (sensorTestBusy) return;
+    setSensorTestBusy(true);
     try {
-      const allowed = await requestPhoneMotionPermission();
-      if (!allowed) throw new Error(copy.phoneTiltUnavailable);
+      const result = await probePhoneMotionSensors();
+      setPhoneSensorBrowser(result.brave ? "brave" : "other");
+      setPhoneSensorState(result.available ? "available" : "blocked");
+      if (!result.available) {
+        setTiltDialogMode("blocked");
+        return;
+      }
+      setTiltDialogMode(null);
       orientationTrackerRef.current.reset();
       orientationRef.current = { u_ratio: 0, v_ratio: 0 };
       orientationReadyRef.current = false;
@@ -287,7 +320,32 @@ export default function App() {
       setOrientationEnabled(true);
     } catch (error) {
       dispatch({ type: "client.error", error: error.message });
+    } finally {
+      setSensorTestBusy(false);
     }
+  }
+
+  /** Retest after a settings change and resume a pending initialization. Usage: blocked-sensor dialog. */
+  async function retestPhoneSensors() {
+    if (sensorTestBusy) return;
+    setSensorTestBusy(true);
+    const result = await probePhoneMotionSensors();
+    setSensorTestBusy(false);
+    setPhoneSensorBrowser(result.brave ? "brave" : "other");
+    setPhoneSensorState(result.available ? "available" : "blocked");
+    if (!result.available) return;
+    const shouldInitialize = initializeAfterSensorTest;
+    setInitializeAfterSensorTest(false);
+    setTiltDialogMode(null);
+    if (shouldInitialize) await runMachineInitialization();
+  }
+
+  /** Dismiss recovery and optionally continue the pending initialization. Usage: dialog secondary action. */
+  function dismissPhoneSensorDialog() {
+    const shouldInitialize = initializeAfterSensorTest;
+    setInitializeAfterSensorTest(false);
+    setTiltDialogMode(null);
+    if (shouldInitialize) runMachineInitialization().catch(() => undefined);
   }
 
   /** Send one supervised direct table pose through the Mobile channel. Usage: staging motion-check buttons. */
@@ -392,7 +450,7 @@ export default function App() {
         <section className="workflow-card" aria-label="Painting session">
           <div className="section-heading"><h2>{copy.paintingSession}</h2><span>{operatorReady ? copy.controlsLive : copy.readOnly}</span></div>
           <div className="button-row">
-            {!state.session.active && <TaskButton state={state} operation="machine_initialize" label={copy.initialize} tone="warn" onClick={initializeMachine} disabled={state.connection !== "connected"} />}
+            {!state.session.active && <TaskButton state={state} operation="machine_initialize" label={copy.initialize} tone="warn" onClick={initializeMachine} disabled={state.connection !== "connected" || sensorTestBusy} />}
             {!state.session.active && <TaskButton state={state} operation="painting_session_start" label={copy.beginPainting} tone="good" onClick={beginPainting} disabled={state.connection !== "connected"} />}
             <TaskButton state={state} operation="machine_clear_stop" label={copy.clearStop} tone="warn" onClick={clearMachineStop} disabled={!state.lease.owned} />
             {state.session.active && <TaskButton state={state} operation="painting_session_end" label={copy.endPainting} tone="warn" onClick={endPainting} />}
@@ -438,7 +496,7 @@ export default function App() {
           <section className="controls-card" aria-label="Continuous controls">
             <div className="section-heading"><h2>{copy.paintTable}</h2><span>{copy.releaseStops}</span></div>
             <div className="table-control-status" role="status" aria-live="polite">
-              <span>{copy.phoneTilt}: {orientationReady ? `U ${tiltPose.u.toFixed(1)}° · V ${tiltPose.v.toFixed(1)}°` : orientationEnabled ? copy.phoneTiltWaiting : copy.phoneTiltOff}</span>
+              <span>{copy.phoneTilt}: {orientationReady ? `U ${tiltPose.u.toFixed(1)}° · V ${tiltPose.v.toFixed(1)}°` : orientationEnabled ? copy.phoneTiltWaiting : phoneSensorState === "blocked" ? copy.phoneTiltBlocked : copy.phoneTiltOff}</span>
               <span>{copy.tilt}: {copy.delivery[tableDelivery.tilt] || tableDelivery.tilt}</span>
               <span>{copy.rotation}: {copy.delivery[tableDelivery.rotation] || tableDelivery.rotation}</span>
             </div>
@@ -467,10 +525,13 @@ export default function App() {
         </section>
       </main>
       <TiltPermissionDialog
+        brave={phoneSensorBrowser === "brave"}
+        busy={sensorTestBusy}
+        continueWithoutTilting={initializeAfterSensorTest}
         copy={copy}
-        open={tiltDialogOpen}
-        onCancel={() => setTiltDialogOpen(false)}
-        onContinue={enablePhoneTilting}
+        mode={tiltDialogMode}
+        onCancel={dismissPhoneSensorDialog}
+        onContinue={tiltDialogMode === "blocked" ? retestPhoneSensors : enablePhoneTilting}
       />
     </FullScreen>
   );

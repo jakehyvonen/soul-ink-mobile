@@ -5,10 +5,13 @@
 import { describe, expect, it } from "vitest";
 import {
   accelerationAngles,
+  browserIsBrave,
   OrientationTracker,
+  probePhoneMotionSensors,
   requestPhoneMotionPermission,
   screenRelativeAngles,
   TILT_RANGE_DEGREES,
+  waitForPhoneMotionSample,
 } from "./orientationControl.js";
 
 /** Feed one steady sample enough times for the smoothing filter to settle. Usage: mapping assertions. */
@@ -44,6 +47,47 @@ describe("requestPhoneMotionPermission", () => {
       DeviceOrientationEvent: { requestPermission: () => Promise.resolve("denied") },
       DeviceMotionEvent: { requestPermission: () => Promise.resolve("denied") },
     })).toBe(false);
+  });
+});
+
+describe("phone sensor probing", () => {
+  /** Create an isolated sensor event target. Usage: probe success and timeout assertions. */
+  function sensorTarget(overrides = {}) {
+    const listeners = new Map();
+    return {
+      DeviceOrientationEvent: function OrientationEvent() {},
+      addEventListener: (name, listener) => listeners.set(name, listener),
+      emit: (name, event) => listeners.get(name)?.(event),
+      navigator: {},
+      removeEventListener: (name) => listeners.delete(name),
+      ...overrides,
+    };
+  }
+
+  it("detects Brave through its browser API", async () => {
+    expect(await browserIsBrave({ navigator: { brave: { isBrave: () => Promise.resolve(true) } } })).toBe(true);
+    expect(await browserIsBrave({ navigator: {} })).toBe(false);
+  });
+
+  it("accepts a usable orientation sample and rejects silent empty events", async () => {
+    const availableTarget = sensorTarget();
+    const available = waitForPhoneMotionSample(availableTarget, 53);
+    availableTarget.emit("deviceorientation", { beta: 11, gamma: -7 });
+    await expect(available).resolves.toBe(true);
+
+    const emptyTarget = sensorTarget();
+    const empty = waitForPhoneMotionSample(emptyTarget, 17);
+    emptyTarget.emit("deviceorientation", { beta: null, gamma: null });
+    await expect(empty).resolves.toBe(false);
+  });
+
+  it("reports Brave's implicit permission with missing readings as blocked", async () => {
+    const target = sensorTarget({ navigator: { brave: { isBrave: () => Promise.resolve(true) } } });
+    await expect(probePhoneMotionSensors(target, 17)).resolves.toEqual({
+      available: false,
+      brave: true,
+      reason: "no_readings",
+    });
   });
 });
 
